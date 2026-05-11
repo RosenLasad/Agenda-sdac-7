@@ -624,6 +624,7 @@
 .agendaWeekEventIcon.cat-attrezzatura{ background: rgba(170,178,191,.16); border-color: rgba(170,178,191,.28); }
 .agendaWeekEventIcon.cat-montaggio{ background: rgba(88,180,255,.14); border-color: rgba(88,180,255,.26); }
 .agendaWeekEventIcon.cat-riunione{ background: rgba(255,188,92,.14); border-color: rgba(255,188,92,.28); }
+.agendaWeekEventIcon.cat-comunicazione{ background: rgba(48,190,170,.14); border-color: rgba(48,190,170,.28); }
 .agendaWeekEventIcon.cat-other{ background: rgba(255,255,255,.22); border-color: rgba(255,255,255,.18); }
 
 .agendaWeekEventTime{
@@ -2957,9 +2958,11 @@ footer{ color: rgba(255,255,255,.7); }
 .badge.cat.attrezzatura{ border-color: rgba(170,178,191,.46); color:#f0f4f9; background: rgba(170,178,191,.12); }
 .badge.cat.montaggio{ border-color: rgba(88,180,255,.58); color:#e4f4ff; background: rgba(88,180,255,.14); }
 .badge.cat.riunione{ border-color: rgba(255,188,92,.54); color:#fff0cf; background: rgba(255,188,92,.14); }
+.badge.cat.comunicazione{ border-color: rgba(48,190,170,.56); color:#d8fff8; background: rgba(48,190,170,.14); }
 .evLine.cat-attrezzatura, .agendaWeekEvent.cat-attrezzatura{ border-left-color: rgba(170,178,191,.88) !important; }
 .evLine.cat-montaggio, .agendaWeekEvent.cat-montaggio{ border-left-color: rgba(88,180,255,.92) !important; }
 .evLine.cat-riunione, .agendaWeekEvent.cat-riunione{ border-left-color: rgba(255,188,92,.92) !important; }
+.evLine.cat-comunicazione, .agendaWeekEvent.cat-comunicazione{ border-left-color: rgba(48,190,170,.92) !important; }
 
 
 /* Prossimi 7 giorni: icone categoria al posto del trattino */
@@ -3318,6 +3321,7 @@ html[data-theme="light"] .badge.cat.other{ border-color: rgba(139,111,70,.20); c
 html[data-theme="light"] .badge.cat.attrezzatura{ border-color: rgba(128,138,152,.28); color:#4c5a67; background: rgba(128,138,152,.10); }
 html[data-theme="light"] .badge.cat.montaggio{ border-color: rgba(88,140,188,.30); color:#2d628e; background: rgba(88,140,188,.10); }
 html[data-theme="light"] .badge.cat.riunione{ border-color: rgba(189,139,54,.30); color:#8a6421; background: rgba(189,139,54,.10); }
+html[data-theme="light"] .badge.cat.comunicazione{ border-color: rgba(32,132,120,.30); color:#216d65; background: rgba(32,132,120,.10); }
 
 html[data-theme="light"] #view-today .todayHeroKicker,
 html[data-theme="light"] #view-today .todaySectionTitle,
