@@ -3534,6 +3534,56 @@ body.cloudSyncLocked #view-today{
   white-space:nowrap;
 }
 
+.headerStatusStack{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:4px;
+  max-width:100%;
+}
+
+.sessionRoleBadge{
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:5px;
+  min-height:21px;
+  padding:3px 8px;
+  border:1px solid rgba(226,205,171,.14);
+  border-radius:999px;
+  background:rgba(18,16,18,.24);
+  color:rgba(244,238,221,.66);
+  font-size:9.5px;
+  line-height:1;
+  font-weight:700;
+  letter-spacing:.035em;
+  user-select:none;
+}
+.sessionRoleIcon{
+  font-size:10px;
+  line-height:1;
+}
+.sessionRoleBadge[data-role="admin"]{
+  color:rgba(181,220,255,.96);
+  border-color:rgba(91,165,232,.30);
+  background:rgba(48,105,158,.15);
+}
+.sessionRoleBadge[data-role="socio"]{
+  color:rgba(255,224,151,.97);
+  border-color:rgba(224,173,82,.30);
+  background:rgba(122,89,29,.15);
+}
+.sessionRoleBadge[data-role="docente"]{
+  color:rgba(190,244,207,.96);
+  border-color:rgba(91,189,129,.28);
+  background:rgba(49,114,74,.15);
+}
+.sessionRoleBadge[data-role="none"]{
+  color:rgba(255,190,194,.96);
+  border-color:rgba(230,102,111,.28);
+  background:rgba(125,45,51,.15);
+}
+
 .cloudSyncStatus{
   display:inline-flex;
   align-items:center;
@@ -3635,6 +3685,32 @@ body.cloudSyncLocked #accountOverlay{
   border-color:rgba(85,105,137,.36);
   background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(237,228,211,.96));
 }
+:root[data-theme="light"] .sessionRoleBadge{
+  color:#75675d;
+  border-color:rgba(116,86,56,.13);
+  background:rgba(255,255,255,.42);
+}
+:root[data-theme="light"] .sessionRoleBadge[data-role="admin"]{
+  color:#276996;
+  border-color:rgba(55,128,184,.22);
+  background:rgba(74,155,218,.10);
+}
+:root[data-theme="light"] .sessionRoleBadge[data-role="socio"]{
+  color:#805d24;
+  border-color:rgba(138,102,48,.20);
+  background:rgba(188,139,54,.10);
+}
+:root[data-theme="light"] .sessionRoleBadge[data-role="docente"]{
+  color:#2e6c45;
+  border-color:rgba(48,106,69,.18);
+  background:rgba(82,151,105,.10);
+}
+:root[data-theme="light"] .sessionRoleBadge[data-role="none"]{
+  color:#963e47;
+  border-color:rgba(154,63,70,.18);
+  background:rgba(166,57,69,.08);
+}
+
 :root[data-theme="light"] .cloudSyncStatus{
   color:#745f50;
   border-color:rgba(116,86,56,.13);
@@ -3691,6 +3767,14 @@ body.cloudSyncLocked #accountOverlay{
     font-size:10px;
     min-height:23px;
     padding:4px 8px;
+  }
+  .headerStatusStack{
+    gap:3px;
+  }
+  .sessionRoleBadge{
+    min-height:20px;
+    padding:3px 7px;
+    font-size:9px;
   }
 }
 
@@ -3812,16 +3896,16 @@ body.cloudSyncLocked #accountOverlay{
   letter-spacing:.25px;
 }
 .accountRoleBadge[data-role="admin"]{
-  border-color:rgba(74,190,119,.35);
-  background:rgba(74,190,119,.11);
-}
-.accountRoleBadge[data-role="socio"]{
   border-color:rgba(90,155,224,.34);
   background:rgba(90,155,224,.10);
 }
-.accountRoleBadge[data-role="docente"]{
+.accountRoleBadge[data-role="socio"]{
   border-color:rgba(218,168,76,.36);
   background:rgba(218,168,76,.10);
+}
+.accountRoleBadge[data-role="docente"]{
+  border-color:rgba(74,190,119,.35);
+  background:rgba(74,190,119,.11);
 }
 .accountRoleBadge[data-role="none"]{
   border-color:rgba(226,73,92,.38);

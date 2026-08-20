@@ -213,10 +213,16 @@
             <button class="btn loginActionBtn" id="loginBtn">Accesso</button>
           </div>
 
-          <div class="cloudSyncStatus" id="cloudSyncStatus" data-state="idle" role="status" aria-live="polite" title="Cloud non verificato">
-            <span class="cloudStatusIcon" aria-hidden="true">☁️</span>
-            <span class="cloudStatusText">Non verificato</span>
-            <span class="cloudStatusMeta" aria-hidden="true"></span>
+          <div class="headerStatusStack">
+            <div class="cloudSyncStatus" id="cloudSyncStatus" data-state="idle" role="status" aria-live="polite" title="Cloud non verificato">
+              <span class="cloudStatusIcon" aria-hidden="true">☁️</span>
+              <span class="cloudStatusText">Non verificato</span>
+              <span class="cloudStatusMeta" aria-hidden="true"></span>
+            </div>
+            <div class="sessionRoleBadge" id="sessionRoleBadge" data-role="guest" title="Ruolo attivo: Ospite" aria-label="Ruolo attivo: Ospite">
+              <span class="sessionRoleIcon" id="sessionRoleIcon" aria-hidden="true">👤</span>
+              <span class="sessionRoleText" id="sessionRoleText">Ospite</span>
+            </div>
           </div>
         </div>
       </div>

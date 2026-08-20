@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-agenda-shell-v8-authflow";
+const CACHE_NAME = "sdac-agenda-shell-v9-role-badge";
 
 const APP_SHELL = [
   "./",

@@ -6,6 +6,9 @@
   var MAX_RECENT_EMAILS = 6;
 
   var loginBtn = document.getElementById("loginBtn");
+  var sessionRoleBadge = document.getElementById("sessionRoleBadge");
+  var sessionRoleIcon = document.getElementById("sessionRoleIcon");
+  var sessionRoleText = document.getElementById("sessionRoleText");
   var accountOverlay = document.getElementById("accountOverlay");
   var closeAccountBtn = document.getElementById("closeAccountBtn");
   var accountModalTitle = document.getElementById("accountModalTitle");
@@ -190,7 +193,26 @@
     return !!(pendingAuthFlow && (pendingAuthFlow.type === "invite" || pendingAuthFlow.type === "recovery"));
   }
 
+  function refreshHeaderRoleBadge(){
+    if(!sessionRoleBadge) return;
+    var user = getIdentityUser();
+    var role = isPasswordFlow() ? "guest" : getAccountRole(user);
+    var icon = "👤";
+    if(role === "admin") icon = "🛡️";
+    else if(role === "socio") icon = "👥";
+    else if(role === "docente") icon = "🎓";
+    else if(role === "none") icon = "⚠️";
+
+    var label = getRoleLabel(role);
+    sessionRoleBadge.setAttribute("data-role", role);
+    sessionRoleBadge.setAttribute("title", "Ruolo attivo: " + label);
+    sessionRoleBadge.setAttribute("aria-label", "Ruolo attivo: " + label);
+    if(sessionRoleIcon) sessionRoleIcon.textContent = icon;
+    if(sessionRoleText) sessionRoleText.textContent = label;
+  }
+
   function refreshLoginBtn(){
+    refreshHeaderRoleBadge();
     if(!loginBtn) return;
     var user = getIdentityUser();
     var role = getAccountRole(user);
@@ -512,6 +534,7 @@
   };
 
   renderRecentEmails();
+  refreshHeaderRoleBadge();
 
   if(window.netlifyIdentity){
     if(loginBtn){
