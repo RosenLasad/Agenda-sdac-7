@@ -679,20 +679,43 @@
         <div class="accountGuestView" id="accountGuestView">
           <div class="accountPane" id="accountLoginPane">
             <div class="accountPaneTitle">Accedi con il tuo account SDAC</div>
-            <div class="field">
-              <label>Email</label>
-              <input id="accountLoginEmail" type="email" placeholder="nome@email.com" autocomplete="email">
-            </div>
-            <div class="field">
-              <label>Password</label>
-              <input id="accountLoginPassword" type="password" placeholder="Password" autocomplete="current-password">
-            </div>
-            <div class="accountFormActions">
-              <button class="btn primary" id="btnAccountLogin" type="button">Accedi</button>
-              <button class="btn" id="btnAccountContinueFreeLogin" type="button">Continua senza accesso</button>
-              <button class="btn" id="btnAccountRecover" type="button">Password dimenticata?</button>
-            </div>
-            <div class="hint">Non è prevista la registrazione libera: gli account autorizzati vengono invitati e gestiti dalla SDAC tramite Netlify Identity.</div>
+            <form id="accountLoginForm" autocomplete="on">
+              <div class="field">
+                <label for="accountLoginEmail">Email</label>
+                <input id="accountLoginEmail" name="username" type="email" placeholder="nome@email.com" autocomplete="username" inputmode="email" list="accountRecentEmails" autocapitalize="none" spellcheck="false">
+                <datalist id="accountRecentEmails"></datalist>
+              </div>
+              <div class="field">
+                <label for="accountLoginPassword">Password</label>
+                <input id="accountLoginPassword" name="password" type="password" placeholder="Password" autocomplete="current-password">
+              </div>
+              <div class="accountFormActions">
+                <button class="btn primary" id="btnAccountLogin" type="submit">Accedi</button>
+                <button class="btn" id="btnAccountContinueFreeLogin" type="button">Continua senza accesso</button>
+                <button class="btn" id="btnAccountRecover" type="button">Password dimenticata?</button>
+              </div>
+            </form>
+            <div class="hint">Gli account autorizzati vengono invitati dalla SDAC. Le email usate di recente possono essere suggerite da Agenda; le password restano affidate esclusivamente al browser o al password manager.</div>
+          </div>
+
+          <div class="accountPane hidden" id="accountPasswordPane">
+            <div class="accountPaneTitle" id="accountPasswordTitle">Crea la tua password</div>
+            <p class="accountPasswordText" id="accountPasswordText">Scegli una password per completare l'accesso al tuo account SDAC.</p>
+            <form id="accountPasswordForm" autocomplete="on">
+              <div class="field">
+                <label for="accountNewPassword">Nuova password</label>
+                <input id="accountNewPassword" name="new-password" type="password" placeholder="Nuova password" autocomplete="new-password">
+              </div>
+              <div class="field">
+                <label for="accountNewPasswordConfirm">Conferma password</label>
+                <input id="accountNewPasswordConfirm" name="new-password-confirm" type="password" placeholder="Ripeti la password" autocomplete="new-password">
+              </div>
+              <div class="accountFormActions">
+                <button class="btn primary" id="btnAccountSetPassword" type="submit">Imposta password</button>
+                <button class="btn" id="btnAccountPasswordCancel" type="button">Torna all'accesso</button>
+              </div>
+            </form>
+            <div class="hint">La password non viene salvata da SDAC Agenda. Se il browser lo propone, puoi memorizzarla nel suo gestore credenziali.</div>
           </div>
         </div>
 

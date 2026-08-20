@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-agenda-shell-v7-roles";
+const CACHE_NAME = "sdac-agenda-shell-v8-authflow";
 
 const APP_SHELL = [
   "./",

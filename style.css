@@ -2362,6 +2362,23 @@ body{
   margin-bottom:8px;
 }
 
+.accountPasswordText{
+  margin:0 0 12px;
+  color:var(--muted);
+  line-height:1.5;
+}
+
+.accountPane form{
+  margin:0;
+}
+
+.accountPane input:-webkit-autofill,
+.accountPane input:-webkit-autofill:hover,
+.accountPane input:-webkit-autofill:focus{
+  -webkit-text-fill-color:var(--text);
+  transition:background-color 9999s ease-out 0s;
+}
+
 .accountFormActions{
   display:flex;
   gap:8px;

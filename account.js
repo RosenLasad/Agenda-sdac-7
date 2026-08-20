@@ -1,6 +1,10 @@
 (function(){
   "use strict";
 
+  var RECENT_EMAILS_KEY = "sdacAgenda.recentLoginEmails.v1";
+  var AUTH_FLOW_SESSION_KEY = "sdacAgenda.pendingAuthFlow.v1";
+  var MAX_RECENT_EMAILS = 6;
+
   var loginBtn = document.getElementById("loginBtn");
   var accountOverlay = document.getElementById("accountOverlay");
   var closeAccountBtn = document.getElementById("closeAccountBtn");
@@ -8,11 +12,24 @@
   var accountStatus = document.getElementById("accountStatus");
   var accountGuestView = document.getElementById("accountGuestView");
   var accountUserView = document.getElementById("accountUserView");
+  var accountLoginPane = document.getElementById("accountLoginPane");
+  var accountLoginForm = document.getElementById("accountLoginForm");
   var accountLoginEmail = document.getElementById("accountLoginEmail");
   var accountLoginPassword = document.getElementById("accountLoginPassword");
+  var accountRecentEmails = document.getElementById("accountRecentEmails");
   var btnAccountLogin = document.getElementById("btnAccountLogin");
   var btnAccountRecover = document.getElementById("btnAccountRecover");
   var btnAccountContinueFreeLogin = document.getElementById("btnAccountContinueFreeLogin");
+
+  var accountPasswordPane = document.getElementById("accountPasswordPane");
+  var accountPasswordTitle = document.getElementById("accountPasswordTitle");
+  var accountPasswordText = document.getElementById("accountPasswordText");
+  var accountPasswordForm = document.getElementById("accountPasswordForm");
+  var accountNewPassword = document.getElementById("accountNewPassword");
+  var accountNewPasswordConfirm = document.getElementById("accountNewPasswordConfirm");
+  var btnAccountSetPassword = document.getElementById("btnAccountSetPassword");
+  var btnAccountPasswordCancel = document.getElementById("btnAccountPasswordCancel");
+
   var accountUserEmail = document.getElementById("accountUserEmail");
   var accountUserRole = document.getElementById("accountUserRole");
   var accountUserSync = document.getElementById("accountUserSync");
@@ -21,6 +38,9 @@
   var accountPermissionSummary = document.getElementById("accountPermissionSummary");
   var btnAccountManagePremium = document.getElementById("btnAccountManagePremium");
   var btnAccountLogout = document.getElementById("btnAccountLogout");
+
+  var pendingAuthFlow = loadPendingAuthFlow();
+  var pendingFlowBusy = false;
 
   function callAgendaHook(name, arg){
     try{
@@ -93,13 +113,90 @@
     };
   }
 
+  function safeParseJson(text, fallback){
+    try{ return JSON.parse(text); }catch(e){ return fallback; }
+  }
+
+  function readRecentEmails(){
+    try{
+      var parsed = safeParseJson(localStorage.getItem(RECENT_EMAILS_KEY) || "[]", []);
+      if(!Array.isArray(parsed)) return [];
+      return parsed.filter(function(item){ return typeof item === "string" && item.indexOf("@") > 0; }).slice(0, MAX_RECENT_EMAILS);
+    }catch(e){
+      return [];
+    }
+  }
+
+  function rememberEmail(email){
+    email = String(email || "").trim().toLowerCase();
+    if(!email || email.indexOf("@") <= 0) return;
+    var emails = readRecentEmails().filter(function(item){ return item.toLowerCase() !== email; });
+    emails.unshift(email);
+    emails = emails.slice(0, MAX_RECENT_EMAILS);
+    try{ localStorage.setItem(RECENT_EMAILS_KEY, JSON.stringify(emails)); }catch(e){}
+    renderRecentEmails();
+  }
+
+  function renderRecentEmails(){
+    if(!accountRecentEmails) return;
+    accountRecentEmails.innerHTML = "";
+    readRecentEmails().forEach(function(email){
+      var option = document.createElement("option");
+      option.value = email;
+      accountRecentEmails.appendChild(option);
+    });
+  }
+
+  function savePendingAuthFlow(flow){
+    pendingAuthFlow = flow || null;
+    try{
+      if(pendingAuthFlow) sessionStorage.setItem(AUTH_FLOW_SESSION_KEY, JSON.stringify(pendingAuthFlow));
+      else sessionStorage.removeItem(AUTH_FLOW_SESSION_KEY);
+    }catch(e){}
+  }
+
+  function loadPendingAuthFlow(){
+    var stored = null;
+    try{ stored = safeParseJson(sessionStorage.getItem(AUTH_FLOW_SESSION_KEY) || "null", null); }catch(e){}
+
+    var hash = String(window.location.hash || "");
+    if(hash.charAt(0) === "#") hash = hash.slice(1);
+    var params = new URLSearchParams(hash);
+    var inviteToken = params.get("invite_token");
+    var recoveryToken = params.get("recovery_token");
+    var flow = stored;
+
+    if(inviteToken){
+      flow = { type:"invite", token:inviteToken, stage:"password" };
+    }else if(recoveryToken){
+      flow = { type:"recovery", token:recoveryToken, stage:"recover" };
+    }
+
+    if(inviteToken || recoveryToken){
+      try{
+        sessionStorage.setItem(AUTH_FLOW_SESSION_KEY, JSON.stringify(flow));
+        history.replaceState(null, document.title, window.location.pathname + window.location.search);
+      }catch(e){}
+    }
+    return flow;
+  }
+
+  function clearPendingAuthFlow(){
+    savePendingAuthFlow(null);
+    pendingFlowBusy = false;
+  }
+
+  function isPasswordFlow(){
+    return !!(pendingAuthFlow && (pendingAuthFlow.type === "invite" || pendingAuthFlow.type === "recovery"));
+  }
+
   function refreshLoginBtn(){
     if(!loginBtn) return;
     var user = getIdentityUser();
     var role = getAccountRole(user);
-    loginBtn.textContent = user ? "Cloud" : "Accesso";
+    loginBtn.textContent = user && !isPasswordFlow() ? "Cloud" : "Accesso";
     loginBtn.setAttribute("data-role", role);
-    loginBtn.title = user ? ("Cloud SDAC · " + getRoleLabel(role)) : "Accedi a SDAC Agenda";
+    loginBtn.title = user && !isPasswordFlow() ? ("Cloud SDAC · " + getRoleLabel(role)) : "Accedi a SDAC Agenda";
   }
 
   function setAccountMessage(text, type){
@@ -113,17 +210,38 @@
     accountStatus.className = "accountStatus accountStatus--" + (type || "info");
   }
 
+  function setPasswordFlowUi(){
+    var active = isPasswordFlow();
+    if(accountLoginPane) accountLoginPane.classList.toggle("hidden", active);
+    if(accountPasswordPane) accountPasswordPane.classList.toggle("hidden", !active);
+    if(!active) return;
+
+    if(pendingAuthFlow.type === "invite"){
+      if(accountModalTitle) accountModalTitle.textContent = "Attiva account SDAC";
+      if(accountPasswordTitle) accountPasswordTitle.textContent = "Crea la tua password";
+      if(accountPasswordText) accountPasswordText.textContent = "Hai aperto un invito SDAC. Scegli una password personale per completare l'attivazione dell'account.";
+      if(btnAccountSetPassword) btnAccountSetPassword.textContent = "Crea password e accedi";
+    }else{
+      if(accountModalTitle) accountModalTitle.textContent = "Reimposta password";
+      if(accountPasswordTitle) accountPasswordTitle.textContent = "Imposta una nuova password";
+      if(accountPasswordText) accountPasswordText.textContent = "Il link di recupero è stato verificato. Scegli la nuova password che userai per i prossimi accessi.";
+      if(btnAccountSetPassword) btnAccountSetPassword.textContent = "Salva nuova password";
+    }
+  }
+
   function renderAccountModal(){
     if(!accountOverlay) return;
     var user = getIdentityUser();
     var role = getAccountRole(user);
     var roleInfo = getRoleDescription(role);
+    var passwordFlow = isPasswordFlow();
 
-    if(accountModalTitle) accountModalTitle.textContent = user ? "Cloud SDAC" : "Accesso SDAC";
-    if(accountGuestView) accountGuestView.classList.toggle("hidden", !!user);
-    if(accountUserView) accountUserView.classList.toggle("hidden", !user);
+    if(!passwordFlow && accountModalTitle) accountModalTitle.textContent = user ? "Cloud SDAC" : "Accesso SDAC";
+    if(accountGuestView) accountGuestView.classList.toggle("hidden", !!user && !passwordFlow);
+    if(accountUserView) accountUserView.classList.toggle("hidden", !user || passwordFlow);
+    setPasswordFlowUi();
 
-    if(user){
+    if(user && !passwordFlow){
       if(accountUserEmail) accountUserEmail.textContent = user.email || "—";
       if(accountUserRole){
         accountUserRole.textContent = getRoleLabel(role);
@@ -139,22 +257,27 @@
     refreshLoginBtn();
   }
 
-  function openAccountModal(){
-    if(!accountOverlay) return;
-    setAccountMessage("", "info");
-    renderAccountModal();
-    accountOverlay.style.display = "flex";
-    accountOverlay.setAttribute("aria-hidden", "false");
-
+  function focusBestAccountField(){
     setTimeout(function(){
       try{
-        if(getIdentityUser()){
+        if(isPasswordFlow()){
+          if(accountNewPassword) accountNewPassword.focus();
+        }else if(getIdentityUser()){
           if(btnAccountManagePremium) btnAccountManagePremium.focus();
         }else if(accountLoginEmail){
           accountLoginEmail.focus();
         }
       }catch(e){}
     }, 30);
+  }
+
+  function openAccountModal(){
+    if(!accountOverlay) return;
+    setAccountMessage("", "info");
+    renderAccountModal();
+    accountOverlay.style.display = "flex";
+    accountOverlay.setAttribute("aria-hidden", "false");
+    focusBestAccountField();
   }
 
   function closeAccountModal(){
@@ -201,18 +324,21 @@
     }
 
     setAccountMessage("Accesso in corso...", "info");
-    auth.login(email, password, true).then(function(){
-      var user = getIdentityUser();
+    auth.login(email, password, true).then(function(user){
+      user = user || getIdentityUser();
+      rememberEmail((user && user.email) || email);
+      if(accountLoginPassword) accountLoginPassword.value = "";
       var role = getAccountRole(user);
       if(role === "none"){
         setAccountMessage("Accesso effettuato, ma il ruolo SDAC non è ancora assegnato. Impostalo da Netlify e poi effettua nuovamente l'accesso.", "error");
       }else{
         setAccountMessage("Accesso effettuato come " + getRoleLabel(role) + ".", "success");
       }
+      callAgendaHook("onIdentityLogin", user);
       renderAccountModal();
       refreshLoginBtn();
     }).catch(function(error){
-      var msg = (error && ((error.json && error.json.error_description) || error.message)) || "Accesso non riuscito.";
+      var msg = (error && ((error.json && error.json.error_description) || (error.json && error.json.msg) || error.message)) || "Accesso non riuscito.";
       setAccountMessage(msg, "error");
     });
   }
@@ -231,11 +357,139 @@
       return;
     }
 
+    rememberEmail(email);
     setAccountMessage("Invio email di recupero...", "info");
     auth.requestPasswordRecovery(email).then(function(){
-      setAccountMessage("Ti abbiamo inviato un'email per reimpostare la password.", "success");
+      setAccountMessage("Email inviata. Apri il link ricevuto: Agenda ti chiederà di scegliere una nuova password.", "success");
     }).catch(function(error){
       var msg = (error && ((error.json && error.json.msg) || (error.json && error.json.error_description) || error.message)) || "Invio email non riuscito.";
+      setAccountMessage(msg, "error");
+    });
+  }
+
+  function validateNewPasswords(){
+    var password = String((accountNewPassword && accountNewPassword.value) || "");
+    var confirm = String((accountNewPasswordConfirm && accountNewPasswordConfirm.value) || "");
+    if(!password || !confirm){
+      setAccountMessage("Inserisci e conferma la nuova password.", "error");
+      if(!password && accountNewPassword) accountNewPassword.focus();
+      else if(accountNewPasswordConfirm) accountNewPasswordConfirm.focus();
+      return null;
+    }
+    if(password !== confirm){
+      setAccountMessage("Le due password non coincidono.", "error");
+      if(accountNewPasswordConfirm) accountNewPasswordConfirm.focus();
+      return null;
+    }
+    return password;
+  }
+
+  function finishPasswordFlow(user, message){
+    user = user || getIdentityUser();
+    if(user && user.email) rememberEmail(user.email);
+    if(accountNewPassword) accountNewPassword.value = "";
+    if(accountNewPasswordConfirm) accountNewPasswordConfirm.value = "";
+    clearPendingAuthFlow();
+    setAccountMessage(message || "Password impostata correttamente.", "success");
+    callAgendaHook("onIdentityLogin", user);
+    renderAccountModal();
+    refreshLoginBtn();
+  }
+
+  function handleSetPassword(){
+    if(!pendingAuthFlow || pendingFlowBusy) return;
+    var auth = getIdentityClient();
+    var password = validateNewPasswords();
+    if(!password) return;
+
+    pendingFlowBusy = true;
+    if(btnAccountSetPassword) btnAccountSetPassword.disabled = true;
+
+    if(pendingAuthFlow.type === "invite"){
+      if(!auth || !auth.acceptInvite || !pendingAuthFlow.token){
+        pendingFlowBusy = false;
+        if(btnAccountSetPassword) btnAccountSetPassword.disabled = false;
+        setAccountMessage("Invito non valido o scaduto. Chiedi alla SDAC di inviare un nuovo invito.", "error");
+        return;
+      }
+      setAccountMessage("Attivazione account in corso...", "info");
+      auth.acceptInvite(pendingAuthFlow.token, password, true).then(function(user){
+        finishPasswordFlow(user, "Account attivato. La tua password è stata impostata correttamente.");
+      }).catch(function(error){
+        pendingFlowBusy = false;
+        if(btnAccountSetPassword) btnAccountSetPassword.disabled = false;
+        var msg = (error && ((error.json && error.json.msg) || (error.json && error.json.error_description) || error.message)) || "Attivazione non riuscita.";
+        setAccountMessage(msg, "error");
+      });
+      return;
+    }
+
+    var user = getIdentityUser();
+    if(!user || !user.update){
+      pendingFlowBusy = false;
+      if(btnAccountSetPassword) btnAccountSetPassword.disabled = false;
+      setAccountMessage("Il link di recupero non è più attivo. Richiedi una nuova email di recupero.", "error");
+      return;
+    }
+
+    setAccountMessage("Salvataggio nuova password...", "info");
+    user.update({ password: password }).then(function(updatedUser){
+      finishPasswordFlow(updatedUser || user, "Password aggiornata. Ora puoi usare normalmente questo account SDAC.");
+    }).catch(function(error){
+      pendingFlowBusy = false;
+      if(btnAccountSetPassword) btnAccountSetPassword.disabled = false;
+      var msg = (error && ((error.json && error.json.msg) || (error.json && error.json.error_description) || error.message)) || "Aggiornamento password non riuscito.";
+      setAccountMessage(msg, "error");
+    });
+  }
+
+  function cancelPasswordFlow(){
+    clearPendingAuthFlow();
+    if(accountNewPassword) accountNewPassword.value = "";
+    if(accountNewPasswordConfirm) accountNewPasswordConfirm.value = "";
+    setAccountMessage("Operazione annullata. Per riprenderla dovrai riaprire il link ricevuto via email.", "info");
+    renderAccountModal();
+    if(accountLoginEmail) accountLoginEmail.focus();
+  }
+
+  function startPendingAuthFlow(){
+    if(!pendingAuthFlow) return;
+    openAccountModal();
+
+    if(pendingAuthFlow.type === "invite"){
+      setAccountMessage("Invito riconosciuto. Scegli una password personale per attivare l'account.", "info");
+      renderAccountModal();
+      focusBestAccountField();
+      return;
+    }
+
+    if(pendingAuthFlow.type === "recovery" && pendingAuthFlow.stage === "ready"){
+      setAccountMessage("Link verificato. Scegli ora la nuova password.", "info");
+      renderAccountModal();
+      focusBestAccountField();
+      return;
+    }
+
+    var auth = getIdentityClient();
+    if(!auth || !auth.recover || !pendingAuthFlow.token){
+      setAccountMessage("Link di recupero non valido o scaduto. Richiedi una nuova email di recupero.", "error");
+      return;
+    }
+
+    if(pendingFlowBusy) return;
+    pendingFlowBusy = true;
+    setAccountMessage("Verifica del link di recupero...", "info");
+    auth.recover(pendingAuthFlow.token, true).then(function(user){
+      pendingFlowBusy = false;
+      if(user && user.email) rememberEmail(user.email);
+      savePendingAuthFlow({ type:"recovery", stage:"ready" });
+      callAgendaHook("onIdentityLogout");
+      setAccountMessage("Link verificato. Scegli ora la nuova password.", "success");
+      renderAccountModal();
+      focusBestAccountField();
+    }).catch(function(error){
+      pendingFlowBusy = false;
+      var msg = (error && ((error.json && error.json.msg) || (error.json && error.json.error_description) || error.message)) || "Link di recupero non valido o scaduto.";
       setAccountMessage(msg, "error");
     });
   }
@@ -257,14 +511,19 @@
     getRole: function(){ return getAccountRole(getIdentityUser()); }
   };
 
+  renderRecentEmails();
+
   if(window.netlifyIdentity){
     if(loginBtn){
       loginBtn.addEventListener("click", function(){ openAccountModal(); });
     }
     if(closeAccountBtn) closeAccountBtn.addEventListener("click", closeAccountModal);
-    if(btnAccountLogin) btnAccountLogin.addEventListener("click", handleAccountLogin);
+    if(accountLoginForm) accountLoginForm.addEventListener("submit", function(ev){ ev.preventDefault(); handleAccountLogin(); });
+    else if(btnAccountLogin) btnAccountLogin.addEventListener("click", handleAccountLogin);
     if(btnAccountRecover) btnAccountRecover.addEventListener("click", handleAccountRecovery);
     if(btnAccountContinueFreeLogin) btnAccountContinueFreeLogin.addEventListener("click", closeAccountModal);
+    if(accountPasswordForm) accountPasswordForm.addEventListener("submit", function(ev){ ev.preventDefault(); handleSetPassword(); });
+    if(btnAccountPasswordCancel) btnAccountPasswordCancel.addEventListener("click", cancelPasswordFlow);
     if(btnAccountManagePremium) btnAccountManagePremium.addEventListener("click", handleCloudIntent);
     if(btnAccountLogout) btnAccountLogout.addEventListener("click", handleAccountLogout);
 
@@ -274,32 +533,34 @@
       });
     }
 
-    if(accountLoginPassword){
-      accountLoginPassword.addEventListener("keydown", function(ev){
-        if(ev.key === "Enter") handleAccountLogin();
-      });
-    }
-
     window.netlifyIdentity.on("init", function(user){
       refreshLoginBtn();
       renderAccountModal();
-      callAgendaHook("onIdentityInit", user);
+      if(pendingAuthFlow){
+        callAgendaHook("onIdentityLogout");
+        startPendingAuthFlow();
+      }else{
+        callAgendaHook("onIdentityInit", user);
+      }
     });
 
     window.netlifyIdentity.on("login", function(user){
+      if(pendingAuthFlow) return;
       refreshLoginBtn();
       renderAccountModal();
+      if(user && user.email) rememberEmail(user.email);
       callAgendaHook("onIdentityLogin", user);
     });
 
     window.netlifyIdentity.on("logout", function(){
+      if(pendingAuthFlow) return;
       refreshLoginBtn();
       renderAccountModal();
       callAgendaHook("onIdentityLogout");
     });
 
     window.netlifyIdentity.on("error", function(err){
-      var msg = (err && ((err.json && err.json.error_description) || err.message)) || "Operazione non riuscita.";
+      var msg = (err && ((err.json && err.json.error_description) || (err.json && err.json.msg) || err.message)) || "Operazione non riuscita.";
       setAccountMessage(msg, "error");
     });
 
