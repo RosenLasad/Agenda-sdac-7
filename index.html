@@ -721,7 +721,6 @@
             <div>
               <div class="schoolEyebrow">Gestione economica</div>
               <h2 class="schoolHeroTitle">Amministrazione <span id="administrationAcademicYear">2026/2027</span></h2>
-              <div class="hint" id="administrationRoleHint">Quote studenti, pagamenti e scadenze.</div>
             </div>
             <div class="administrationHeroStats">
               <div class="schoolStat"><strong id="administrationExpectedTotal">€ 0</strong><span>Quote</span></div>
@@ -742,9 +741,8 @@
         </div>
 
         <div class="administrationPanel hidden" id="administrationOverviewPanel">
-          <div class="schoolSectionHead">
-            <div><div class="schoolEyebrow">Panoramica Admin</div><h2>Quote per corso</h2></div>
-            <div class="hint">Le future spese e altre entrate confluiranno qui senza mescolarsi ai dati degli studenti.</div>
+          <div class="schoolSectionHead administrationCompactHeading">
+            <div class="schoolEyebrow">Panoramica Admin <span class="schoolEyebrowSub">· Quote per corso</span></div>
           </div>
           <div class="administrationCourseSummary" id="administrationCourseSummary"></div>
         </div>
@@ -757,8 +755,8 @@
               <div class="field"><label>Stato</label><select id="administrationStatusFilter"><option value="all">Tutti</option><option value="settled">Saldati</option><option value="ok">In regola / parziali</option><option value="unpaid">Da iniziare</option><option value="overdue">Scaduti</option></select></div>
             </div>
           </div>
-          <div class="schoolSectionHead">
-            <div><div class="schoolEyebrow">Quote studenti</div><h2>Situazione pagamenti</h2></div>
+          <div class="schoolSectionHead administrationCompactHeading">
+            <div class="schoolEyebrow">Quote studenti <span class="schoolEyebrowSub">· situazione pagamenti</span></div>
             <div class="hint" id="administrationFeesMeta">Nessuna iscrizione</div>
           </div>
           <div class="administrationFeeList" id="administrationFeeList"></div>

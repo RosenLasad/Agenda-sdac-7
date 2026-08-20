@@ -4124,3 +4124,69 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
   .schoolStudentOpenBtn .schoolStudentAttendance{ grid-column:2; text-align:left; display:flex; gap:5px; align-items:baseline; }
   .administrationAmounts{ grid-template-columns:1fr; }
 }
+
+
+/* ===== SDAC Amministrazione: rifinitura mobile compatta ===== */
+.administrationView .schoolStack{ gap:11px; }
+.administrationCompactHeading{ align-items:center; min-height:22px; margin-top:0; }
+.administrationCompactHeading .schoolEyebrow{ margin:0; font-size:11px; line-height:1.25; }
+.administrationCompactHeading .schoolEyebrowSub{ font:inherit; letter-spacing:inherit; color:var(--muted); opacity:.88; }
+.administrationFilterRow{ gap:8px; }
+.administrationFilterRow .field{ min-width:0; margin:0; gap:4px; }
+.administrationFilterRow .field label{ font-size:11px; }
+.administrationFilterRow input,.administrationFilterRow select{ width:100%; min-width:0; }
+.administrationFeeList{ gap:7px; }
+.administrationFeeRow{ padding:10px 11px; display:grid; grid-template-columns:minmax(0,1fr) minmax(245px,.72fr); gap:7px 14px; align-items:center; }
+.administrationFeeHeader{ min-width:0; display:flex; align-items:center; justify-content:space-between; gap:10px; }
+.administrationFeePerson{ gap:2px; }
+.administrationFeePerson strong{ font-size:14px; line-height:1.15; }
+.administrationFeePerson span{ font-size:11px; }
+.administrationFeeActions{ display:flex; align-items:center; justify-content:flex-end; gap:6px; flex:0 0 auto; }
+.administrationFeeActions .financeStatusBadge{ padding:3px 7px; font-size:10px; }
+.administrationOpenBtn{ padding:5px 8px; min-height:0; font-size:11px; white-space:nowrap; }
+.administrationAmounts{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:5px; min-width:0; }
+.administrationAmounts span{ display:flex; flex-direction:column; gap:1px; min-width:0; font-size:inherit; text-transform:none; letter-spacing:0; }
+.administrationAmounts strong{ font-size:13px; line-height:1.1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.administrationAmounts small{ color:var(--muted); font-size:8px; line-height:1.1; text-transform:uppercase; letter-spacing:.045em; }
+.administrationPaymentProgress{ grid-column:1/-1; height:3px; border-radius:999px; overflow:hidden; background:rgba(255,255,255,.06); }
+.administrationPaymentProgress i{ display:block; height:100%; border-radius:inherit; background:#c4933f; }
+.administrationDueText{ grid-column:1/-1; margin-top:-1px; font-size:10px; }
+
+@media (max-width:720px){
+  .administrationView .schoolStack{ gap:8px; }
+  .administrationView .schoolHeroBody{ gap:10px; }
+  .administrationSectionTabs{ gap:5px; padding:0; }
+  .administrationSectionTab{ padding:6px 9px; font-size:11px; }
+  .administrationFeesPanel .schoolFiltersCard .cardBody{ padding:9px 10px; }
+  .administrationFilterRow{ grid-template-columns:repeat(2,minmax(0,1fr)); gap:6px 8px; }
+  .administrationFilterRow .field:first-child{ grid-column:1/-1; }
+  .administrationFilterRow .field{ margin:0; gap:3px; }
+  .administrationCompactHeading{ gap:8px; }
+  .administrationCompactHeading .hint{ font-size:10px; white-space:nowrap; }
+  .administrationFeeRow{ grid-template-columns:1fr; padding:9px 10px; gap:6px; }
+  .administrationFeeHeader{ gap:7px; }
+  .administrationFeeActions{ gap:5px; }
+  .administrationAmounts{ max-width:none; width:100%; }
+  .administrationPaymentProgress{ grid-column:auto; }
+  .administrationDueText{ grid-column:auto; }
+}
+
+@media (max-width:480px){
+  .administrationCompactHeading .schoolEyebrow{ font-size:10px; letter-spacing:.085em; }
+  .administrationFeePerson strong{ font-size:13px; }
+  .administrationFeePerson span{ font-size:10px; }
+  .administrationFeeActions .financeStatusBadge{ max-width:94px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .administrationAmounts{ grid-template-columns:repeat(3,minmax(0,1fr)); gap:3px; }
+  .administrationAmounts strong{ font-size:12px; }
+  .administrationAmounts small{ font-size:7.5px; }
+  .administrationOpenBtn{ padding:4px 7px; font-size:10px; }
+  .administrationDueText{ font-size:9px; }
+}
+
+@media (max-width:350px){
+  .administrationFeeHeader{ align-items:flex-start; }
+  .administrationFeeActions{ gap:3px; }
+  .administrationFeeActions .financeStatusBadge{ padding:3px 5px; max-width:82px; font-size:9px; }
+  .administrationOpenBtn{ padding:4px 6px; }
+  .administrationAmounts strong{ font-size:11px; }
+}
