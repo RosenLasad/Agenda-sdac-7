@@ -2,7 +2,8 @@
     "use strict";
 
     var START_YEAR = 2026;
-    var STORAGE_KEY = "sdac_agenda_2026_v1";
+    var LEGACY_STORAGE_KEY = "sdac_agenda_2026_v1";
+    var STORAGE_KEY_PREFIX = "sdac_agenda_2026_v2_";
     var THEME_KEY = "sdac_agenda_theme";
     var REMOTE_BASE_KEY_PREFIX = "sdac_agenda_cloud_base_v1_";
     var THEME_META_DARK = "#9f1020";
@@ -295,13 +296,87 @@
       };
     }
 
+    function getIdentityUser(){
+      try{
+        return window.netlifyIdentity && window.netlifyIdentity.currentUser && window.netlifyIdentity.currentUser();
+      }catch(e){
+        return null;
+      }
+    }
+
+    function getRoleFromUser(user){
+      if(!user) return "guest";
+      var appMeta = user.app_metadata || {};
+      var roles = Array.isArray(appMeta.roles) ? appMeta.roles.map(function(role){ return String(role || "").toLowerCase(); }) : [];
+      if(roles.indexOf("admin") !== -1) return "admin";
+      if(roles.indexOf("socio") !== -1) return "socio";
+      if(roles.indexOf("docente") !== -1) return "docente";
+      return "none";
+    }
+
+    function getCurrentAccessRole(){
+      return getRoleFromUser(getIdentityUser());
+    }
+
+    function roleCanAccess(role, feature){
+      if(role === "admin") return true;
+      if(role === "socio") return feature === "calendar" || feature === "today" || feature === "notebook" || feature === "contacts" || feature === "cloud";
+      if(role === "docente") return feature === "calendar" || feature === "today" || feature === "cloud";
+      return feature === "calendar" || feature === "today";
+    }
+
+    function hasAuthorizedCloudRole(){
+      var role = getCurrentAccessRole();
+      return role === "admin" || role === "socio" || role === "docente";
+    }
+
+    function safeLocalUserKey(value){
+      var key = String(value || "guest").toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 120);
+      return key || "guest";
+    }
+
+    function getCurrentLocalUserKey(){
+      var user = getIdentityUser();
+      if(!user) return "guest";
+      return safeLocalUserKey(user.id || user.sub || user.email || "user");
+    }
+
+    function getStorageKey(){
+      return STORAGE_KEY_PREFIX + getCurrentLocalUserKey();
+    }
+
+    function projectStateForRole(source, role){
+      var src = normalizeLoadedState(source && typeof source === "object" ? source : defaultState());
+      if(role === "admin" || role === "socio") return src;
+      return normalizeLoadedState({
+        version: src.version || "v1-notes",
+        updatedAt: src.updatedAt,
+        events: src.events || {},
+        todos: [],
+        notes: normalizeNotesState(null),
+        contacts: []
+      });
+    }
+
     function loadState(){
       try{
-        var raw = localStorage.getItem(STORAGE_KEY);
-        if(!raw) return defaultState();
+        var storageKey = getStorageKey();
+        var raw = localStorage.getItem(storageKey);
+        if(!raw){
+          var legacyRaw = localStorage.getItem(LEGACY_STORAGE_KEY);
+          if(legacyRaw){
+            var legacyObj = JSON.parse(legacyRaw);
+            if(legacyObj && typeof legacyObj === "object"){
+              var migrated = projectStateForRole(legacyObj, getCurrentAccessRole());
+              try{ localStorage.setItem(storageKey, JSON.stringify(migrated)); }catch(e){}
+              return migrated;
+            }
+          }
+          return defaultState();
+        }
         var obj = JSON.parse(raw);
         if(!obj || typeof obj !== "object") return defaultState();
-        return normalizeLoadedState(obj);
+        return projectStateForRole(obj, getCurrentAccessRole());
       }catch(e){
         return defaultState();
       }
@@ -321,6 +396,8 @@
     var saveTimer = null;
     var liveTodayISO = isoDate(getTodayDate());
     var todayViewOffset = 0;
+    var currentView = "calendar";
+    var currentAccessRole = getCurrentAccessRole();
 
     // --- Cloud sync (Netlify Identity + Functions + Blobs) ---
     var remoteSaveTimer = null;
@@ -376,7 +453,7 @@
 
     function getCurrentCloudUserKey(){
       try{
-        var user = window.netlifyIdentity && window.netlifyIdentity.currentUser && window.netlifyIdentity.currentUser();
+        var user = getIdentityUser();
         var raw = user && (user.id || user.sub || user.email) ? (user.id || user.sub || user.email) : "shared";
         var key = String(raw).toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 120);
         return key || "shared";
@@ -407,7 +484,7 @@
 
     function hasStoredLocalState(){
       try{
-        return !!localStorage.getItem(STORAGE_KEY);
+        return !!localStorage.getItem(getStorageKey());
       }catch(e){
         return false;
       }
@@ -427,6 +504,7 @@
       if(kind === "syncing" || kind === "pending" || kind === "locked") icon = "\uD83D\uDD04";
       if(kind === "ok") icon = "\u2601\uFE0F";
       if(kind === "conflict" || kind === "error") icon = "\u26A0\uFE0F";
+      if(kind === "forbidden") icon = "\uD83D\uDEAB";
       var ico = btnCloudRefresh.querySelector(".ico");
       if(ico) ico.textContent = icon;
       btnCloudRefresh.setAttribute("data-cloud-state", kind || "idle");
@@ -436,6 +514,7 @@
       else if(kind === "syncing" || kind === "locked") label = "Sincronizzazione cloud in corso";
       else if(kind === "conflict") label = "Conflitto cloud: premi per caricare la versione cloud";
       else if(kind === "error") label = "Errore cloud: premi per riprovare";
+      else if(kind === "forbidden") label = "Ruolo SDAC non autorizzato al Cloud";
       btnCloudRefresh.title = label;
       btnCloudRefresh.setAttribute("aria-label", label);
     }
@@ -483,6 +562,10 @@
           icon = "\u26A0\uFE0F";
           text = "Errore cloud";
           detail = message || "Aggiornamento cloud non riuscito. Premi Cloud per riprovare.";
+        }else if(kind === "forbidden"){
+          icon = "\uD83D\uDEAB";
+          text = "Ruolo non autorizzato";
+          detail = message || "Questo account non ha un ruolo SDAC valido. Assegna Admin, Socio o Docente da Netlify e accedi di nuovo.";
         }else{
           icon = "\u2601\uFE0F";
           text = "Non verificato";
@@ -510,6 +593,7 @@
         cache:"no-store"
       });
       if(res.status === 401) return { ok:false, unauthorized:true, data:null };
+      if(res.status === 403) return { ok:false, forbidden:true, data:null };
       if(!res.ok) throw new Error("Remote load failed");
       var obj = await res.json();
       return obj || { ok:true, data:null };
@@ -529,6 +613,11 @@
       var obj = null;
       try{ obj = await res.json(); }catch(e){ obj = null; }
       if(res.status === 401) return { ok:false, unauthorized:true };
+      if(res.status === 403){
+        var forbidden = new Error((obj && (obj.message || obj.error)) || "Ruolo SDAC non autorizzato");
+        forbidden.forbidden = true;
+        throw forbidden;
+      }
       if(res.status === 409){
         var conflict = new Error((obj && (obj.message || obj.error)) || "Remote conflict");
         conflict.conflict = true;
@@ -565,7 +654,7 @@
       remoteLastKnownUpdatedAt = state.updatedAt || remoteLastKnownUpdatedAt;
       if(state.updatedAt) setStoredRemoteBaseUpdatedAt(state.updatedAt);
       remoteConflictPending = false;
-      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+      try{ localStorage.setItem(getStorageKey(), JSON.stringify(state)); }catch(e){}
       syncNotesUiFromState();
       renderAll();
       updateStorageStatus(true);
@@ -577,6 +666,12 @@
         remoteConflictPending = false;
         setCloudWriteLock(false);
         setCloudStatus("idle", "\u2601\uFE0F Cloud: non attivo");
+        return;
+      }
+      if(!hasAuthorizedCloudRole()){
+        remoteConflictPending = false;
+        setCloudWriteLock(false);
+        setCloudStatus("forbidden");
         return;
       }
       if(remoteSyncInFlight){
@@ -594,6 +689,12 @@
           remoteConflictPending = false;
           setCloudWriteLock(false);
           setCloudStatus("idle", "\u2601\uFE0F Cloud: accesso richiesto");
+          return;
+        }
+        if(envelope && envelope.forbidden){
+          remoteConflictPending = false;
+          setCloudWriteLock(false);
+          setCloudStatus("forbidden");
           return;
         }
 
@@ -695,7 +796,7 @@
     }
 
     function scheduleRemoteSave(immediate, allowWhileLocked, unlockAfterSave){
-      if(!isLoggedIn()) return;
+      if(!isLoggedIn() || !hasAuthorizedCloudRole()) return;
       if(remoteConflictPending && !allowWhileLocked){
         setCloudWriteLock(true, "conflict");
         setCloudStatus("conflict", "\u26A0\uFE0F Salvataggio bloccato: aggiorna prima la versione cloud dal pulsante cloud.");
@@ -719,13 +820,16 @@
           remoteLastCheckedAt = new Date().toISOString();
           remoteConflictPending = false;
           setStoredRemoteBaseUpdatedAt(savedAt);
-          try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+          try{ localStorage.setItem(getStorageKey(), JSON.stringify(state)); }catch(e){}
           updateStorageStatus(true);
           if(unlockAfterSave) setCloudWriteLock(false);
           setCloudStatus("ok");
         }).catch(function(e){
           console.warn("Salvataggio cloud fallito:", e);
-          if(e && e.conflict){
+          if(e && e.forbidden){
+            setCloudWriteLock(false);
+            setCloudStatus("forbidden");
+          }else if(e && e.conflict){
             if(e.remoteUpdatedAt) remoteLastKnownUpdatedAt = e.remoteUpdatedAt;
             remoteConflictPending = true;
             setCloudWriteLock(true, "conflict");
@@ -741,7 +845,7 @@
 
     function startRemotePolling(){
       stopRemotePolling();
-      if(!isLoggedIn()) return;
+      if(!isLoggedIn() || !hasAuthorizedCloudRole()) return;
       remotePollHandle = setInterval(function(){
         if(document.visibilityState === "visible" && !remoteSyncInFlight && !remoteWriteLocked){
           scheduleRemoteRefresh(false, false);
@@ -757,7 +861,7 @@
     }
 
     function scheduleRemoteRefresh(forcePull, mandatory){
-      if(!isLoggedIn()) return;
+      if(!isLoggedIn() || !hasAuthorizedCloudRole()) return;
       if(remotePullTimer) clearTimeout(remotePullTimer);
       remotePullTimer = setTimeout(function(){
         syncFromCloudOrSeed(!!forcePull, !!mandatory);
@@ -771,6 +875,12 @@
         setCloudStatus("idle", "\u2601\uFE0F Cloud: non attivo");
         return;
       }
+      if(!hasAuthorizedCloudRole()){
+        remoteConflictPending = false;
+        setCloudWriteLock(false);
+        setCloudStatus("forbidden");
+        return;
+      }
       setCloudWriteLock(true, "sync");
       setCloudStatus("locked");
       // Il controllo iniziale confronta le versioni: non forza piu il cloud
@@ -781,6 +891,11 @@
     function handleManualCloudRefresh(){
       if(!isLoggedIn()){
         alert("Accedi prima al cloud SDAC.");
+        return;
+      }
+      if(!hasAuthorizedCloudRole()){
+        alert("Questo account non ha un ruolo SDAC valido. Assegna Admin, Socio o Docente da Netlify e accedi di nuovo.");
+        setCloudStatus("forbidden");
         return;
       }
       if(remoteConflictPending){
@@ -893,6 +1008,60 @@
 
     var todayPrevBtn = $("#todayPrevBtn");
     var todayNextBtn = $("#todayNextBtn");
+
+    function roleDisplayName(role){
+      if(role === "admin") return "Admin";
+      if(role === "socio") return "Socio";
+      if(role === "docente") return "Docente";
+      if(role === "none") return "account senza ruolo";
+      return "utente non autenticato";
+    }
+
+    function canCurrentRoleAccess(feature){
+      return roleCanAccess(currentAccessRole, feature);
+    }
+
+    function roleRestrictionMessage(feature){
+      var label = feature === "notebook" ? "Taccuino" : feature === "contacts" ? "Rubrica" : feature === "settings" ? "Impostazioni" : "Questa area";
+      if(currentAccessRole === "guest") return label + " richiede un account SDAC autorizzato.";
+      if(currentAccessRole === "none") return label + " non è disponibile finché all'account non viene assegnato un ruolo SDAC.";
+      return label + " non è disponibile per il ruolo " + roleDisplayName(currentAccessRole) + ".";
+    }
+
+    function setRoleLockedElement(el, locked, message){
+      if(!el) return;
+      el.classList.toggle("isRoleLocked", !!locked);
+      el.setAttribute("aria-disabled", locked ? "true" : "false");
+      if(!el.getAttribute("data-role-title")) el.setAttribute("data-role-title", el.getAttribute("title") || "");
+      el.setAttribute("title", locked ? message : (el.getAttribute("data-role-title") || ""));
+    }
+
+    function applyRolePermissions(user){
+      var resolvedUser = arguments.length ? user : getIdentityUser();
+      currentAccessRole = getRoleFromUser(resolvedUser);
+      try{ document.body.setAttribute("data-sdac-role", currentAccessRole); }catch(e){}
+
+      var notebookAllowed = canCurrentRoleAccess("notebook");
+      var contactsAllowed = canCurrentRoleAccess("contacts");
+      var settingsAllowed = canCurrentRoleAccess("settings");
+
+      tabs.forEach(function(tab){
+        var view = tab.getAttribute("data-view");
+        if(view === "notebook") setRoleLockedElement(tab, !notebookAllowed, roleRestrictionMessage("notebook"));
+        else if(view === "contacts") setRoleLockedElement(tab, !contactsAllowed, roleRestrictionMessage("contacts"));
+        else setRoleLockedElement(tab, false, "");
+      });
+
+      setRoleLockedElement(settingsMenuBtn, !settingsAllowed, roleRestrictionMessage("settings"));
+      if(!settingsAllowed && typeof setSettingsMenuOpen === "function") setSettingsMenuOpen(false);
+
+      var todoPanelCard = todoMiniPanel && todoMiniPanel.closest ? todoMiniPanel.closest(".todoPanelCard") : null;
+      if(todoPanelCard) todoPanelCard.classList.toggle("roleFeatureHidden", !notebookAllowed);
+
+      if((currentView === "notebook" && !notebookAllowed) || (currentView === "contacts" && !contactsAllowed)){
+        setView("calendar", true);
+      }
+    }
 
     function getNotesState(){
       if(!state.notes || typeof state.notes !== "object") state.notes = normalizeNotesState(state.notes);
@@ -1383,7 +1552,12 @@ wireCollapse(todoListCard);
 wireCollapse(notesListCard);
 wireCollapse(notesEditorCard);
 resetEventForm();
-    function setView(view){
+    function setView(view, silent){
+      if((view === "notebook" && !canCurrentRoleAccess("notebook")) || (view === "contacts" && !canCurrentRoleAccess("contacts"))){
+        if(!silent) window.alert(roleRestrictionMessage(view));
+        return false;
+      }
+      currentView = view;
       tabs.forEach(function(t){ t.classList.toggle("active", t.getAttribute("data-view") === view); });
       if(viewCalendar) viewCalendar.classList.toggle("hidden", view !== "calendar");
       if(viewNotebook) viewNotebook.classList.toggle("hidden", view !== "notebook");
@@ -1397,6 +1571,7 @@ resetEventForm();
       }
       if(view === "contacts") renderContacts();
       if(view === "today") renderTodayPanel();
+      return true;
     }
 
 function getTodayViewDate(){
@@ -1410,7 +1585,7 @@ function renderTodayPanel(){
 }
 
 function openNotebookToAddTodo(){
-  setView("notebook");
+  if(!setView("notebook")) return;
   if(todoAddCard) setCollapsed(todoAddCard, false);
   setTimeout(function(){
     try{
@@ -1734,7 +1909,7 @@ if(openTodosBtn){
       if(saveTimer) clearTimeout(saveTimer);
       saveTimer = setTimeout(function(){
         try{
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          localStorage.setItem(getStorageKey(), JSON.stringify(state));
           updateStorageStatus(true);
           // se loggato, salva anche online (debounce separato)
           if(isLoggedIn()) scheduleRemoteSave();
@@ -1747,7 +1922,7 @@ if(openTodosBtn){
     function updateStorageStatus(ok){
       if(!storageStatus) return;
       try{
-        var raw = localStorage.getItem(STORAGE_KEY) || "";
+        var raw = localStorage.getItem(getStorageKey()) || "";
         var size = raw.length;
         storageStatus.textContent = (ok !== false ? "ok" : "errore") + " · " + Math.round(size/1024) + " KB";
       }catch(e){
@@ -2455,6 +2630,7 @@ todoActiveList.appendChild(item);
 
     function setSettingsMenuOpen(open, focusFirst){
       if(!settingsMenu || !settingsMenuBtn) return;
+      if(open && !canCurrentRoleAccess("settings")) return;
       var shouldOpen = !!open;
       settingsMenu.hidden = !shouldOpen;
       settingsMenuBtn.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
@@ -2466,11 +2642,19 @@ todoActiveList.appendChild(item);
     }
 
     function toggleSettingsMenu(){
+      if(!canCurrentRoleAccess("settings")){
+        window.alert(roleRestrictionMessage("settings"));
+        return;
+      }
       setSettingsMenuOpen(!isSettingsMenuOpen(), false);
     }
 
     // Export / Import / Reset
     function exportJSON(){
+      if(!canCurrentRoleAccess("settings")){
+        window.alert(roleRestrictionMessage("settings"));
+        return;
+      }
       try{
         var data = JSON.stringify(state, null, 2);
         var blob = new Blob([data], { type:"application/json" });
@@ -2487,6 +2671,11 @@ todoActiveList.appendChild(item);
     }
 
     function importJSON(e){
+      if(!canCurrentRoleAccess("settings")){
+        if(e && e.target) e.target.value = "";
+        window.alert(roleRestrictionMessage("settings"));
+        return;
+      }
       var file = e.target.files && e.target.files[0];
       if(!file) return;
 
@@ -2499,7 +2688,7 @@ todoActiveList.appendChild(item);
           state = normalizeLoadedState(obj);
           state.updatedAt = new Date().toISOString();
 
-          localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+          localStorage.setItem(getStorageKey(), JSON.stringify(state));
           syncNotesUiFromState();
 
           renderAll();
@@ -2516,6 +2705,10 @@ todoActiveList.appendChild(item);
     }
 
     function resetAll(){
+      if(!canCurrentRoleAccess("settings")){
+        window.alert(roleRestrictionMessage("settings"));
+        return;
+      }
       if(isLoggedIn() && remoteWriteLocked){
         if(remoteConflictPending || remoteWriteLockReason === "conflict"){
           window.alert("Prima di azzerare l'agenda, risolvi il conflitto dal pulsante cloud. In questo modo il Reset non rischia di sovrascrivere modifiche piu recenti.");
@@ -2527,7 +2720,7 @@ todoActiveList.appendChild(item);
       exportJSON();
       state = defaultState();
       state.updatedAt = new Date().toISOString();
-      try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
+      try{ localStorage.setItem(getStorageKey(), JSON.stringify(state)); }catch(e){}
       syncNotesUiFromState();
       var now = new Date();
       currentYear = now.getFullYear();
@@ -2621,6 +2814,10 @@ todoActiveList.appendChild(item);
     });
     if(btnImportTrigger){
       btnImportTrigger.addEventListener("click", function(){
+        if(!canCurrentRoleAccess("settings")){
+          window.alert(roleRestrictionMessage("settings"));
+          return;
+        }
         if(importFile) importFile.click();
       });
     }
@@ -2785,6 +2982,7 @@ if(installBtn){
 if(btnCloudRefresh){
   btnCloudRefresh.addEventListener("click", handleManualCloudRefresh);
 }
+applyRolePermissions(getIdentityUser());
 setCloudStatus("idle");
 
 if(themeToggleBtn){
@@ -2813,8 +3011,10 @@ function switchStateForCurrentSession(){
 
 window.AgendaApp = {
   onIdentityInit: function(user){
+    applyRolePermissions(user);
     switchStateForCurrentSession();
-    if(user){
+    applyRolePermissions(user);
+    if(user && hasAuthorizedCloudRole()){
       startRemotePolling();
       beginMandatoryCloudRefresh();
     }else{
@@ -2823,13 +3023,21 @@ window.AgendaApp = {
       remoteLastKnownUpdatedAt = null;
       remoteLastCheckedAt = null;
       setCloudWriteLock(false);
-      setCloudStatus("idle", "\u2601\uFE0F Cloud: non attivo");
+      setCloudStatus(user ? "forbidden" : "idle", user ? undefined : "\u2601\uFE0F Cloud: non attivo");
     }
   },
   onIdentityLogin: function(user){
+    applyRolePermissions(user);
     switchStateForCurrentSession();
-    startRemotePolling();
-    beginMandatoryCloudRefresh();
+    applyRolePermissions(user);
+    if(hasAuthorizedCloudRole()){
+      startRemotePolling();
+      beginMandatoryCloudRefresh();
+    }else{
+      stopRemotePolling();
+      setCloudWriteLock(false);
+      setCloudStatus("forbidden");
+    }
   },
   onIdentityLogout: function(){
     stopRemotePolling();
@@ -2839,11 +3047,14 @@ window.AgendaApp = {
     remoteLastKnownUpdatedAt = null;
     remoteLastCheckedAt = null;
     setCloudWriteLock(false);
+    applyRolePermissions(null);
     switchStateForCurrentSession();
+    applyRolePermissions(null);
     setCloudStatus("idle", "\u2601\uFE0F Cloud: non attivo");
   },
   requestSoftSync: function(){
-    scheduleRemoteRefresh(false, false);
+    if(hasAuthorizedCloudRole()) scheduleRemoteRefresh(false, false);
+    else if(isLoggedIn()) setCloudStatus("forbidden");
   }
 };
 

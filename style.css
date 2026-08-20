@@ -3720,3 +3720,111 @@ body.cloudSyncLocked #accountOverlay{
     width:100%;
   }
 }
+
+/* =========================================================
+   SDAC role permissions: Admin / Socio / Docente
+   ========================================================= */
+.settingsMenuBtn.isRoleLocked{
+  position:relative;
+  cursor:not-allowed;
+  opacity:.7;
+  filter:saturate(.72) brightness(.88);
+}
+.settingsMenuBtn.isRoleLocked:hover{
+  border-color:rgba(226,205,171,.20);
+  background:rgba(20,18,20,.32);
+}
+.settingsMenuBtn.isRoleLocked::after{
+  content:"";
+  position:absolute;
+  left:7px;
+  right:7px;
+  top:50%;
+  height:3px;
+  border-radius:999px;
+  background:#e2495c;
+  box-shadow:0 0 0 1px rgba(75,0,10,.25), 0 1px 4px rgba(0,0,0,.28);
+  transform:translateY(-50%) rotate(-42deg);
+  pointer-events:none;
+}
+
+.bookmarkTab.isRoleLocked{
+  cursor:not-allowed;
+  opacity:.52;
+  filter:grayscale(.42) saturate(.58) brightness(.76);
+}
+.bookmarkTab.isRoleLocked:hover,
+.bookmarkTab.isRoleLocked:active{
+  transform:translateY(10px);
+  filter:grayscale(.42) saturate(.58) brightness(.76);
+}
+.bookmarkTab.isRoleLocked::before{
+  content:"";
+  position:absolute;
+  left:19%;
+  right:19%;
+  top:48%;
+  height:3px;
+  z-index:5;
+  border-radius:999px;
+  background:#e2495c;
+  box-shadow:0 1px 4px rgba(0,0,0,.30);
+  transform:rotate(-26deg);
+  pointer-events:none;
+}
+.bookmarkTab.isRoleLocked .tabPin,
+.bookmarkTab.isRoleLocked .tabIcon,
+.bookmarkTab.isRoleLocked .tabText{
+  opacity:.66;
+}
+
+.roleFeatureHidden{
+  display:none !important;
+}
+
+.accountRoleBadge{
+  display:inline-flex;
+  width:max-content;
+  align-items:center;
+  min-height:26px;
+  padding:4px 9px;
+  border:1px solid rgba(226,205,171,.18);
+  border-radius:999px;
+  background:rgba(255,255,255,.055);
+  font-size:12px;
+  letter-spacing:.25px;
+}
+.accountRoleBadge[data-role="admin"]{
+  border-color:rgba(74,190,119,.35);
+  background:rgba(74,190,119,.11);
+}
+.accountRoleBadge[data-role="socio"]{
+  border-color:rgba(90,155,224,.34);
+  background:rgba(90,155,224,.10);
+}
+.accountRoleBadge[data-role="docente"]{
+  border-color:rgba(218,168,76,.36);
+  background:rgba(218,168,76,.10);
+}
+.accountRoleBadge[data-role="none"]{
+  border-color:rgba(226,73,92,.38);
+  background:rgba(226,73,92,.10);
+}
+.accountPermissionSummary{
+  margin-top:10px;
+  padding:10px 12px;
+  border:1px solid rgba(226,205,171,.14);
+  border-radius:12px;
+  background:rgba(255,255,255,.035);
+  color:var(--muted);
+  font-size:12px;
+  line-height:1.45;
+}
+
+:root[data-theme="light"] .settingsMenuBtn.isRoleLocked:hover{
+  background:rgba(255,255,255,.46);
+}
+:root[data-theme="light"] .accountRoleBadge,
+:root[data-theme="light"] .accountPermissionSummary{
+  background:rgba(255,255,255,.52);
+}

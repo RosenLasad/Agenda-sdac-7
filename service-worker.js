@@ -1,10 +1,11 @@
-const CACHE_NAME = "sdac-agenda-shell-v6";
+const CACHE_NAME = "sdac-agenda-shell-v7-roles";
 
 const APP_SHELL = [
   "./",
   "./index.html",
   "./style.css",
   "./app.js",
+  "./account.js",
   "./manifest.webmanifest",
   "./icons/icon.svg",
   "./icons/icon-192.png",

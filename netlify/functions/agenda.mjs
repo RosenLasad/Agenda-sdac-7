@@ -1,6 +1,10 @@
 import { getStore } from "@netlify/blobs";
 import { getUser } from "@netlify/identity";
 
+const SHARED_STATE_KEY = "state-v2-shared-sdac";
+const SHARED_META_KEY = "state-v2-shared-sdac-meta";
+const ALLOWED_ROLES = new Set(["admin", "socio", "docente"]);
+
 function safeKey(s) {
   return String(s || "").replace(/[^a-zA-Z0-9_-]/g, "_");
 }
@@ -24,6 +28,25 @@ function getIdentityUserFromContext(context) {
   return context?.clientContext?.user || null;
 }
 
+function getUserRoles(user) {
+  const raw = user?.roles
+    || user?.app_metadata?.roles
+    || user?.appMetadata?.roles
+    || [];
+
+  return Array.isArray(raw)
+    ? raw.map((role) => String(role || "").toLowerCase())
+    : [];
+}
+
+function resolveRole(user) {
+  const roles = getUserRoles(user);
+  if (roles.includes("admin")) return "admin";
+  if (roles.includes("socio")) return "socio";
+  if (roles.includes("docente")) return "docente";
+  return null;
+}
+
 function buildUserAliases(user) {
   const raw = [
     user?.sub || "",
@@ -40,8 +63,6 @@ function buildUserAliases(user) {
     seen.add(key);
     aliases.push(key);
   }
-
-  if (!aliases.length) aliases.push("user");
   return aliases;
 }
 
@@ -50,45 +71,117 @@ function getUpdatedAtMillis(obj) {
   return Number.isFinite(value) ? value : 0;
 }
 
-async function loadBestState(store, aliases, canonicalKey, canonicalAlias) {
+function cloneJson(value) {
+  return value && typeof value === "object"
+    ? JSON.parse(JSON.stringify(value))
+    : value;
+}
+
+function projectStateForRole(data, role) {
+  if (!data || typeof data !== "object") return null;
+  if (role === "admin" || role === "socio") return cloneJson(data);
+
+  return {
+    version: data.version || "v1-notes",
+    updatedAt: data.updatedAt || null,
+    events: cloneJson(data.events || {}),
+    todos: [],
+    notes: {
+      items: [],
+      currentId: null,
+      draftTitle: "",
+      draftBody: "",
+      listOpen: true,
+      editorOpen: false,
+      favoritesOnly: false
+    },
+    contacts: []
+  };
+}
+
+function mergeStateForRole(existing, incoming, role) {
+  const current = existing && typeof existing === "object" ? cloneJson(existing) : {};
+  const payload = incoming && typeof incoming === "object" ? cloneJson(incoming) : {};
+
+  if (role === "admin" || role === "socio") return payload;
+
+  // Il Docente puo modificare il Calendario, ma non puo leggere o
+  // sovrascrivere Taccuino, Rubrica o future aree amministrative.
+  return {
+    ...current,
+    version: current.version || payload.version || "v1-notes",
+    events: payload.events && typeof payload.events === "object" ? payload.events : (current.events || {})
+  };
+}
+
+async function getJsonIfPresent(store, key) {
+  if (!key) return null;
+  try {
+    const data = await store.get(key, { type: "json", consistency: "strong" });
+    return data && typeof data === "object" ? data : null;
+  } catch (e) {
+    return null;
+  }
+}
+
+async function loadSharedOrMigrate(store, user) {
+  const shared = await getJsonIfPresent(store, SHARED_STATE_KEY);
+  if (shared) return { data: shared, key: SHARED_STATE_KEY, migratedFrom: null };
+
+  const candidates = [];
+  const ownerMeta = await getJsonIfPresent(store, "owner-meta");
+  if (ownerMeta?.key) candidates.push(ownerMeta.key);
+  if (Array.isArray(ownerMeta?.aliases)) {
+    ownerMeta.aliases.forEach((alias) => candidates.push(`state-v1-${safeKey(alias)}`));
+  }
+  buildUserAliases(user).forEach((alias) => candidates.push(`state-v1-${alias}`));
+
+  const uniqueKeys = [...new Set(candidates.filter(Boolean))];
   const loaded = await Promise.all(
-    aliases.map(async (alias) => {
-      const key = `state-v1-${alias}`;
-      const data = await store.get(key, {
-        type: "json",
-        consistency: "strong"
-      });
-      return { alias, key, data };
-    })
+    uniqueKeys.map(async (key) => ({ key, data: await getJsonIfPresent(store, key) }))
   );
+  const best = loaded
+    .filter((entry) => entry.data)
+    .sort((a, b) => getUpdatedAtMillis(b.data) - getUpdatedAtMillis(a.data))[0];
 
-  const found = loaded
-    .filter((entry) => entry && entry.data && typeof entry.data === "object")
-    .sort((a, b) => getUpdatedAtMillis(b.data) - getUpdatedAtMillis(a.data));
+  if (!best) return { data: null, key: SHARED_STATE_KEY, migratedFrom: null };
 
-  return found[0] || { alias: canonicalAlias, key: canonicalKey, data: null };
+  await store.setJSON(SHARED_STATE_KEY, best.data);
+  await store.setJSON(SHARED_META_KEY, {
+    migratedFrom: best.key,
+    migratedAtUTC: new Date().toISOString(),
+    updatedAtUTC: best.data?.updatedAt || null
+  });
+
+  return { data: best.data, key: SHARED_STATE_KEY, migratedFrom: best.key };
 }
 
 export default async (req, context) => {
   const user = (await getUser().catch(() => null)) || getIdentityUserFromContext(context);
   if (!user) return new Response("Unauthorized", { status: 401 });
 
+  const role = resolveRole(user);
+  if (!role || !ALLOWED_ROLES.has(role)) {
+    return json({
+      ok: false,
+      error: "Forbidden",
+      message: "Account autenticato ma senza un ruolo SDAC autorizzato."
+    }, 403);
+  }
+
   const store = getStore("sdac-agenda");
-  const aliases = buildUserAliases(user);
-  const canonicalAlias = aliases[0];
-  const canonicalKey = `state-v1-${canonicalAlias}`;
 
   try {
     if (req.method === "GET") {
-      const best = await loadBestState(store, aliases, canonicalKey, canonicalAlias);
-
+      const shared = await loadSharedOrMigrate(store, user);
       return json({
         ok: true,
-        data: best.data,
-        updatedAt: best.data?.updatedAt || null,
-        key: best.key,
-        usedAlias: best.alias,
-        aliasesChecked: aliases,
+        data: projectStateForRole(shared.data, role),
+        updatedAt: shared.data?.updatedAt || null,
+        key: SHARED_STATE_KEY,
+        shared: true,
+        role,
+        migratedFrom: shared.migratedFrom,
         email: user.email || null
       });
     }
@@ -115,9 +208,11 @@ export default async (req, context) => {
         return json({ ok: false, error: "Invalid state payload" }, 400);
       }
 
+      const shared = await loadSharedOrMigrate(store, user);
+      const current = shared.data;
+
       if (hasConflictToken) {
-        const best = await loadBestState(store, aliases, canonicalKey, canonicalAlias);
-        const remoteMillis = getUpdatedAtMillis(best.data);
+        const remoteMillis = getUpdatedAtMillis(current);
         const baseMillis = baseUpdatedAt ? Date.parse(baseUpdatedAt) : 0;
         const normalizedBaseMillis = Number.isFinite(baseMillis) ? baseMillis : 0;
 
@@ -127,27 +222,32 @@ export default async (req, context) => {
             conflict: true,
             error: "Remote state is newer than the client base state",
             message: "Il cloud contiene modifiche piu recenti. Aggiorna prima di salvare.",
-            remoteUpdatedAt: best.data?.updatedAt || null,
-            key: best.key,
-            data: best.data
+            remoteUpdatedAt: current?.updatedAt || null,
+            key: SHARED_STATE_KEY,
+            data: projectStateForRole(current, role)
           }, 409);
         }
       }
 
-      payload.updatedAt = new Date().toISOString();
+      const nextState = mergeStateForRole(current, payload, role);
+      nextState.updatedAt = new Date().toISOString();
 
-      await Promise.all(
-        aliases.map((alias) => store.setJSON(`state-v1-${alias}`, payload))
-      );
-
-      await store.setJSON("owner-meta", {
-        key: canonicalKey,
-        aliases,
-        email: user.email || null,
-        updatedAtUTC: payload.updatedAt
+      await store.setJSON(SHARED_STATE_KEY, nextState);
+      await store.setJSON(SHARED_META_KEY, {
+        key: SHARED_STATE_KEY,
+        shared: true,
+        lastEditorEmail: user.email || null,
+        lastEditorRole: role,
+        updatedAtUTC: nextState.updatedAt
       });
 
-      return json({ ok: true, updatedAt: payload.updatedAt, key: canonicalKey, aliases });
+      return json({
+        ok: true,
+        updatedAt: nextState.updatedAt,
+        key: SHARED_STATE_KEY,
+        shared: true,
+        role
+      });
     }
 
     return new Response("Method Not Allowed", { status: 405 });

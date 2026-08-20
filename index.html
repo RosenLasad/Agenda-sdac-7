@@ -670,20 +670,15 @@
       </div>
       <div class="modalBody accountModalBody">
         <div class="accountIntro">
-          <div class="accountIntroTitle">Accesso e sincronizzazione SDAC</div>
-          <p class="accountIntroText">Puoi usare SDAC Agenda in locale oppure accedere con l'account condiviso della scuola per sincronizzare calendario, taccuino e rubrica tra i soci.</p>
+          <div class="accountIntroTitle">Accesso riservato SDAC</div>
+          <p class="accountIntroText">Gli account vengono invitati dalla scuola e ricevono un ruolo: Admin, Socio o Docente. Tutti lavorano sullo stesso Cloud SDAC, con permessi diversi in base al ruolo.</p>
         </div>
 
         <div class="accountStatus hidden" id="accountStatus"></div>
 
         <div class="accountGuestView" id="accountGuestView">
-          <div class="accountAuthTabs" role="tablist" aria-label="Accesso account">
-            <button class="btn accountTabBtn isActive" id="accountTabLogin" type="button" role="tab" aria-selected="true">Accedi</button>
-            <button class="btn accountTabBtn" id="accountTabSignup" type="button" role="tab" aria-selected="false">Nuovo account</button>
-          </div>
-
           <div class="accountPane" id="accountLoginPane">
-            <div class="accountPaneTitle">Accedi con l'account SDAC</div>
+            <div class="accountPaneTitle">Accedi con il tuo account SDAC</div>
             <div class="field">
               <label>Email</label>
               <input id="accountLoginEmail" type="email" placeholder="nome@email.com" autocomplete="email">
@@ -694,31 +689,10 @@
             </div>
             <div class="accountFormActions">
               <button class="btn primary" id="btnAccountLogin" type="button">Accedi</button>
-              <button class="btn" id="btnAccountContinueFreeLogin" type="button">Usa solo in locale</button>
+              <button class="btn" id="btnAccountContinueFreeLogin" type="button">Continua senza accesso</button>
               <button class="btn" id="btnAccountRecover" type="button">Password dimenticata?</button>
             </div>
-            <div class="hint">Per l'uso condiviso SDAC conviene usare l'email istituzionale della scuola, così tutti i soci trovano gli stessi dati aggiornati.</div>
-          </div>
-
-          <div class="accountPane hidden" id="accountSignupPane">
-            <div class="accountPaneTitle">Crea un account dedicato</div>
-            <div class="field">
-              <label>Email</label>
-              <input id="accountSignupEmail" type="email" placeholder="nome@email.com" autocomplete="email">
-            </div>
-            <div class="field">
-              <label>Password</label>
-              <input id="accountSignupPassword" type="password" placeholder="Scegli una password" autocomplete="new-password">
-            </div>
-            <div class="field">
-              <label>Conferma password</label>
-              <input id="accountSignupPassword2" type="password" placeholder="Ripeti la password" autocomplete="new-password">
-            </div>
-            <div class="accountFormActions">
-              <button class="btn primary" id="btnAccountSignup" type="button">Crea account</button>
-              <button class="btn" id="btnAccountContinueFreeSignup" type="button">Usa solo in locale</button>
-            </div>
-            <div class="hint">Questa opzione è utile solo se vuoi fare prove separate: per l'uso quotidiano è più pratico l'account condiviso SDAC.</div>
+            <div class="hint">Non è prevista la registrazione libera: gli account autorizzati vengono invitati e gestiti dalla SDAC tramite Netlify Identity.</div>
           </div>
         </div>
 
@@ -730,8 +704,8 @@
               <strong id="accountUserEmail">—</strong>
             </div>
             <div class="accountInfoItem">
-              <span class="accountInfoLabel">Piano</span>
-              <strong id="accountUserPlan">Cloud SDAC</strong>
+              <span class="accountInfoLabel">Ruolo</span>
+              <strong class="accountRoleBadge" id="accountUserRole" data-role="none">—</strong>
             </div>
             <div class="accountInfoItem">
               <span class="accountInfoLabel">Sincronizzazione</span>
@@ -740,45 +714,16 @@
           </div>
 
           <div class="accountUserCard" id="accountUserCtaCard">
-            <div class="accountUserCardTitle" id="accountUserCtaTitle">Account condiviso SDAC</div>
-            <p class="accountUserCardText" id="accountUserCtaText">Questo accesso può essere usato come spazio condiviso SDAC per sincronizzare i dati tra i soci della scuola.</p>
+            <div class="accountUserCardTitle" id="accountUserCtaTitle">Cloud SDAC condiviso</div>
+            <p class="accountUserCardText" id="accountUserCtaText">I permessi dell'interfaccia dipendono dal ruolo assegnato al tuo account.</p>
             <div class="accountFormActions">
               <button class="btn primary" id="btnAccountManagePremium" type="button">Sincronizzazione cloud</button>
               <button class="btn danger" id="btnAccountLogout" type="button">Esci</button>
             </div>
           </div>
+
+          <div class="accountPermissionSummary" id="accountPermissionSummary"></div>
         </div>
-
-        <div class="accountPlans">
-          <div class="accountPlanCard">
-            <div class="accountPlanHeader">
-              <div class="accountPlanName">Locale</div>
-              <div class="accountPlanPrice">0 €</div>
-            </div>
-            <ul class="accountPlanList">
-              <li>Calendario, Taccuino, Rubrica e Oggi</li>
-              <li>Salvataggio locale sul dispositivo</li>
-              <li>Export/import manuale</li>
-            </ul>
-            <button class="btn" id="btnAccountPlanFree" type="button">Usa in locale</button>
-          </div>
-
-          <div class="accountPlanCard accountPlanCard--premium">
-            <div class="accountPlanHeader">
-              <div class="accountPlanName">Cloud SDAC</div>
-              <div class="accountPlanPrice">Account condiviso <span>sync, backup e lavoro comune</span></div>
-            </div>
-            <ul class="accountPlanList">
-              <li>Tutto il piano locale</li>
-              <li>Sincronizzazione cloud</li>
-              <li>Accesso condiviso da più dispositivi</li>
-              <li>Backup e recupero dati</li>
-            </ul>
-            <button class="btn primary" id="btnAccountPlanPremium" type="button">Attiva cloud</button>
-          </div>
-        </div>
-
-        <div class="hint accountPlansHint">Per SDAC Agenda puoi lavorare in locale oppure usare un unico account condiviso per sincronizzare tutto tra i dispositivi della scuola.</div>
       </div>
     </div>
   </div>

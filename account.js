@@ -2,38 +2,25 @@
   "use strict";
 
   var loginBtn = document.getElementById("loginBtn");
-
   var accountOverlay = document.getElementById("accountOverlay");
   var closeAccountBtn = document.getElementById("closeAccountBtn");
   var accountModalTitle = document.getElementById("accountModalTitle");
   var accountStatus = document.getElementById("accountStatus");
   var accountGuestView = document.getElementById("accountGuestView");
   var accountUserView = document.getElementById("accountUserView");
-  var accountTabLogin = document.getElementById("accountTabLogin");
-  var accountTabSignup = document.getElementById("accountTabSignup");
-  var accountLoginPane = document.getElementById("accountLoginPane");
-  var accountSignupPane = document.getElementById("accountSignupPane");
   var accountLoginEmail = document.getElementById("accountLoginEmail");
   var accountLoginPassword = document.getElementById("accountLoginPassword");
-  var accountSignupEmail = document.getElementById("accountSignupEmail");
-  var accountSignupPassword = document.getElementById("accountSignupPassword");
-  var accountSignupPassword2 = document.getElementById("accountSignupPassword2");
   var btnAccountLogin = document.getElementById("btnAccountLogin");
-  var btnAccountSignup = document.getElementById("btnAccountSignup");
   var btnAccountRecover = document.getElementById("btnAccountRecover");
   var btnAccountContinueFreeLogin = document.getElementById("btnAccountContinueFreeLogin");
-  var btnAccountContinueFreeSignup = document.getElementById("btnAccountContinueFreeSignup");
-  var btnAccountPlanFree = document.getElementById("btnAccountPlanFree");
-  var btnAccountPlanPremium = document.getElementById("btnAccountPlanPremium");
   var accountUserEmail = document.getElementById("accountUserEmail");
-  var accountUserPlan = document.getElementById("accountUserPlan");
+  var accountUserRole = document.getElementById("accountUserRole");
   var accountUserSync = document.getElementById("accountUserSync");
   var accountUserCtaTitle = document.getElementById("accountUserCtaTitle");
   var accountUserCtaText = document.getElementById("accountUserCtaText");
+  var accountPermissionSummary = document.getElementById("accountPermissionSummary");
   var btnAccountManagePremium = document.getElementById("btnAccountManagePremium");
   var btnAccountLogout = document.getElementById("btnAccountLogout");
-
-  var accountCurrentTab = "login";
 
   function callAgendaHook(name, arg){
     try{
@@ -59,20 +46,60 @@
     }
   }
 
-  function getAccountPlan(user){
-    if(!user) return "free";
+  function getAccountRole(user){
+    if(!user) return "guest";
     var appMeta = user.app_metadata || {};
-    var userMeta = user.user_metadata || {};
-    var roles = Array.isArray(appMeta.roles) ? appMeta.roles : [];
-    var plan = String(appMeta.plan || userMeta.plan || "").toLowerCase();
-    if(plan === "premium" || roles.indexOf("premium") !== -1) return "premium";
-    return "free";
+    var roles = Array.isArray(appMeta.roles) ? appMeta.roles.map(function(role){ return String(role || "").toLowerCase(); }) : [];
+    if(roles.indexOf("admin") !== -1) return "admin";
+    if(roles.indexOf("socio") !== -1) return "socio";
+    if(roles.indexOf("docente") !== -1) return "docente";
+    return "none";
+  }
+
+  function getRoleLabel(role){
+    if(role === "admin") return "Admin";
+    if(role === "socio") return "Socio";
+    if(role === "docente") return "Docente";
+    if(role === "guest") return "Ospite";
+    return "Non assegnato";
+  }
+
+  function getRoleDescription(role){
+    if(role === "admin"){
+      return {
+        title: "Accesso completo",
+        text: "Puoi usare tutte le aree di SDAC Agenda, incluse Impostazioni e le future sezioni amministrative.",
+        summary: "Calendario · Oggi · Taccuino · Rubrica · Impostazioni · future aree riservate"
+      };
+    }
+    if(role === "socio"){
+      return {
+        title: "Accesso Socio",
+        text: "Puoi usare le aree operative condivise. Il menu Impostazioni resta riservato all'Admin.",
+        summary: "Calendario · Oggi · Taccuino · Rubrica · Cloud"
+      };
+    }
+    if(role === "docente"){
+      return {
+        title: "Accesso Docente",
+        text: "Puoi usare Calendario, Oggi e Cloud. Taccuino, Rubrica, Impostazioni e aree amministrative non sono disponibili.",
+        summary: "Calendario · Oggi · Cloud"
+      };
+    }
+    return {
+      title: "Ruolo da assegnare",
+      text: "L'account è autenticato, ma non ha ancora un ruolo SDAC valido. Assegna Admin, Socio o Docente da Netlify e poi effettua di nuovo l'accesso.",
+      summary: "Accesso limitato finché non viene assegnato un ruolo"
+    };
   }
 
   function refreshLoginBtn(){
     if(!loginBtn) return;
     var user = getIdentityUser();
+    var role = getAccountRole(user);
     loginBtn.textContent = user ? "Cloud" : "Accesso";
+    loginBtn.setAttribute("data-role", role);
+    loginBtn.title = user ? ("Cloud SDAC · " + getRoleLabel(role)) : "Accedi a SDAC Agenda";
   }
 
   function setAccountMessage(text, type){
@@ -86,24 +113,11 @@
     accountStatus.className = "accountStatus accountStatus--" + (type || "info");
   }
 
-  function setAccountTab(tab){
-    accountCurrentTab = tab === "signup" ? "signup" : "login";
-    if(accountTabLogin){
-      accountTabLogin.classList.toggle("isActive", accountCurrentTab === "login");
-      accountTabLogin.setAttribute("aria-selected", accountCurrentTab === "login" ? "true" : "false");
-    }
-    if(accountTabSignup){
-      accountTabSignup.classList.toggle("isActive", accountCurrentTab === "signup");
-      accountTabSignup.setAttribute("aria-selected", accountCurrentTab === "signup" ? "true" : "false");
-    }
-    if(accountLoginPane) accountLoginPane.classList.toggle("hidden", accountCurrentTab !== "login");
-    if(accountSignupPane) accountSignupPane.classList.toggle("hidden", accountCurrentTab !== "signup");
-  }
-
   function renderAccountModal(){
     if(!accountOverlay) return;
     var user = getIdentityUser();
-    var plan = getAccountPlan(user);
+    var role = getAccountRole(user);
+    var roleInfo = getRoleDescription(role);
 
     if(accountModalTitle) accountModalTitle.textContent = user ? "Cloud SDAC" : "Accesso SDAC";
     if(accountGuestView) accountGuestView.classList.toggle("hidden", !!user);
@@ -111,21 +125,22 @@
 
     if(user){
       if(accountUserEmail) accountUserEmail.textContent = user.email || "—";
-      if(accountUserPlan) accountUserPlan.textContent = plan === "premium" ? "Cloud SDAC" : "Cloud SDAC";
-      if(accountUserSync) accountUserSync.textContent = "Attiva";
-      if(accountUserCtaTitle) accountUserCtaTitle.textContent = "Account condiviso SDAC";
-      if(accountUserCtaText) accountUserCtaText.textContent = "La sincronizzazione cloud è attiva: questo account può fare da spazio condiviso SDAC per calendario, taccuino e rubrica, così tutti i soci vedono gli stessi dati.";
-      if(btnAccountManagePremium) btnAccountManagePremium.textContent = "Gestisci cloud SDAC";
-    }else{
-      setAccountTab(accountCurrentTab || "login");
+      if(accountUserRole){
+        accountUserRole.textContent = getRoleLabel(role);
+        accountUserRole.setAttribute("data-role", role);
+      }
+      if(accountUserSync) accountUserSync.textContent = (role === "admin" || role === "socio" || role === "docente") ? "Attiva" : "Bloccata";
+      if(accountUserCtaTitle) accountUserCtaTitle.textContent = roleInfo.title;
+      if(accountUserCtaText) accountUserCtaText.textContent = roleInfo.text;
+      if(accountPermissionSummary) accountPermissionSummary.textContent = roleInfo.summary;
+      if(btnAccountManagePremium) btnAccountManagePremium.textContent = "Controlla Cloud SDAC";
     }
 
     refreshLoginBtn();
   }
 
-  function openAccountModal(tab){
+  function openAccountModal(){
     if(!accountOverlay) return;
-    if(tab) setAccountTab(tab);
     setAccountMessage("", "info");
     renderAccountModal();
     accountOverlay.style.display = "flex";
@@ -135,10 +150,8 @@
       try{
         if(getIdentityUser()){
           if(btnAccountManagePremium) btnAccountManagePremium.focus();
-        }else if(accountCurrentTab === "signup"){
-          if(accountSignupEmail) accountSignupEmail.focus();
-        }else{
-          if(accountLoginEmail) accountLoginEmail.focus();
+        }else if(accountLoginEmail){
+          accountLoginEmail.focus();
         }
       }catch(e){}
     }, 30);
@@ -155,14 +168,19 @@
     return !!(accountOverlay && accountOverlay.style.display === "flex");
   }
 
-  function handlePremiumIntent(){
-    if(getIdentityUser()){
-      window.alert("La sincronizzazione cloud di SDAC Agenda è già attiva su questo account. Nelle fasi successive possiamo rendere ancora più semplice il flusso dell'account condiviso.");
+  function handleCloudIntent(){
+    var user = getIdentityUser();
+    if(!user){
+      openAccountModal();
       return;
     }
-    setAccountTab("signup");
-    setAccountMessage("Accedi o crea un account SDAC per attivare la sincronizzazione cloud.", "info");
-    openAccountModal("signup");
+    var role = getAccountRole(user);
+    if(role === "none"){
+      setAccountMessage("Questo account non ha ancora un ruolo SDAC. Assegna Admin, Socio o Docente da Netlify, poi esci e accedi di nuovo.", "error");
+      return;
+    }
+    closeAccountModal();
+    callAgendaHook("requestSoftSync");
   }
 
   function handleAccountLogin(){
@@ -184,49 +202,17 @@
 
     setAccountMessage("Accesso in corso...", "info");
     auth.login(email, password, true).then(function(){
-      setAccountMessage("Accesso effettuato.", "success");
+      var user = getIdentityUser();
+      var role = getAccountRole(user);
+      if(role === "none"){
+        setAccountMessage("Accesso effettuato, ma il ruolo SDAC non è ancora assegnato. Impostalo da Netlify e poi effettua nuovamente l'accesso.", "error");
+      }else{
+        setAccountMessage("Accesso effettuato come " + getRoleLabel(role) + ".", "success");
+      }
       renderAccountModal();
       refreshLoginBtn();
     }).catch(function(error){
       var msg = (error && ((error.json && error.json.error_description) || error.message)) || "Accesso non riuscito.";
-      setAccountMessage(msg, "error");
-    });
-  }
-
-  function handleAccountSignup(){
-    var auth = getIdentityClient();
-    if(!auth || !auth.signup){
-      setAccountMessage("Registrazione non disponibile in questo momento.", "error");
-      return;
-    }
-
-    var email = String((accountSignupEmail && accountSignupEmail.value) || "").trim();
-    var password = String((accountSignupPassword && accountSignupPassword.value) || "");
-    var password2 = String((accountSignupPassword2 && accountSignupPassword2.value) || "");
-
-    if(!email || !password || !password2){
-      setAccountMessage("Compila tutti i campi per creare l'account.", "error");
-      return;
-    }
-    if(password !== password2){
-      setAccountMessage("Le password non coincidono.", "error");
-      if(accountSignupPassword2) accountSignupPassword2.focus();
-      return;
-    }
-    if(password.length < 6){
-      setAccountMessage("Scegli una password di almeno 6 caratteri.", "error");
-      if(accountSignupPassword) accountSignupPassword.focus();
-      return;
-    }
-
-    setAccountMessage("Creazione account in corso...", "info");
-    auth.signup(email, password).then(function(){
-      setAccountMessage("Account creato. Controlla la tua email per confermare la registrazione, poi accedi a SDAC Agenda.", "success");
-      setAccountTab("login");
-      if(accountLoginEmail) accountLoginEmail.value = email;
-      if(accountLoginPassword) accountLoginPassword.value = "";
-    }).catch(function(error){
-      var msg = (error && ((error.json && error.json.msg) || (error.json && error.json.error_description) || error.message)) || "Registrazione non riuscita.";
       setAccountMessage(msg, "error");
     });
   }
@@ -238,17 +224,10 @@
       return;
     }
 
-    var email = "";
-    if(accountCurrentTab === "signup"){
-      email = String((accountSignupEmail && accountSignupEmail.value) || "").trim();
-    } else {
-      email = String((accountLoginEmail && accountLoginEmail.value) || "").trim();
-    }
-
+    var email = String((accountLoginEmail && accountLoginEmail.value) || "").trim();
     if(!email){
       setAccountMessage("Inserisci la tua email per ricevere il link di recupero.", "error");
-      if(accountCurrentTab === "signup" && accountSignupEmail) accountSignupEmail.focus();
-      else if(accountLoginEmail) accountLoginEmail.focus();
+      if(accountLoginEmail) accountLoginEmail.focus();
       return;
     }
 
@@ -274,27 +253,19 @@
   window.AgendaAccount = {
     open: openAccountModal,
     close: closeAccountModal,
-    isOpen: isAccountModalOpen
+    isOpen: isAccountModalOpen,
+    getRole: function(){ return getAccountRole(getIdentityUser()); }
   };
 
-  if (window.netlifyIdentity) {
+  if(window.netlifyIdentity){
     if(loginBtn){
-      loginBtn.addEventListener("click", function(){
-        openAccountModal("login");
-      });
+      loginBtn.addEventListener("click", function(){ openAccountModal(); });
     }
-
-    if(accountTabLogin) accountTabLogin.addEventListener("click", function(){ setAccountTab("login"); });
-    if(accountTabSignup) accountTabSignup.addEventListener("click", function(){ setAccountTab("signup"); });
     if(closeAccountBtn) closeAccountBtn.addEventListener("click", closeAccountModal);
     if(btnAccountLogin) btnAccountLogin.addEventListener("click", handleAccountLogin);
-    if(btnAccountSignup) btnAccountSignup.addEventListener("click", handleAccountSignup);
     if(btnAccountRecover) btnAccountRecover.addEventListener("click", handleAccountRecovery);
     if(btnAccountContinueFreeLogin) btnAccountContinueFreeLogin.addEventListener("click", closeAccountModal);
-    if(btnAccountContinueFreeSignup) btnAccountContinueFreeSignup.addEventListener("click", closeAccountModal);
-    if(btnAccountPlanFree) btnAccountPlanFree.addEventListener("click", closeAccountModal);
-    if(btnAccountPlanPremium) btnAccountPlanPremium.addEventListener("click", handlePremiumIntent);
-    if(btnAccountManagePremium) btnAccountManagePremium.addEventListener("click", handlePremiumIntent);
+    if(btnAccountManagePremium) btnAccountManagePremium.addEventListener("click", handleCloudIntent);
     if(btnAccountLogout) btnAccountLogout.addEventListener("click", handleAccountLogout);
 
     if(accountOverlay){
@@ -306,11 +277,6 @@
     if(accountLoginPassword){
       accountLoginPassword.addEventListener("keydown", function(ev){
         if(ev.key === "Enter") handleAccountLogin();
-      });
-    }
-    if(accountSignupPassword2){
-      accountSignupPassword2.addEventListener("keydown", function(ev){
-        if(ev.key === "Enter") handleAccountSignup();
       });
     }
 
@@ -338,13 +304,11 @@
     });
 
     window.netlifyIdentity.init();
-  } else if(loginBtn) {
+  }else if(loginBtn){
     loginBtn.classList.add("hidden");
   }
 
   document.addEventListener("keydown", function(ev){
-    if(ev.key === "Escape" && isAccountModalOpen()){
-      closeAccountModal();
-    }
+    if(ev.key === "Escape" && isAccountModalOpen()) closeAccountModal();
   });
 })();

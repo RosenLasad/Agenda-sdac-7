@@ -1,19 +1,27 @@
 import { getStore } from "@netlify/blobs";
 
-export default async (req) => {
+const SHARED_STATE_KEY = "state-v2-shared-sdac";
+
+export default async () => {
   const store = getStore({ name: "sdac-agenda", consistency: "strong" });
 
-  // Leggo quale chiave contiene lo "stato principale"
-  const meta = await store.get("owner-meta", { type: "json" });
-  const stateKey = meta?.key;
-  if (!stateKey) return;
+  // Il nuovo archivio e condiviso tra tutti gli account SDAC autorizzati.
+  // Finche non e avvenuta la prima migrazione, manteniamo un fallback
+  // alla vecchia chiave owner-meta per non interrompere i backup.
+  let stateKey = SHARED_STATE_KEY;
+  let state = await store.get(stateKey, { type: "json" });
 
-  const state = await store.get(stateKey, { type: "json" });
+  if (!state) {
+    const legacyMeta = await store.get("owner-meta", { type: "json" });
+    stateKey = legacyMeta?.key || null;
+    if (!stateKey) return;
+    state = await store.get(stateKey, { type: "json" });
+  }
+
   if (!state) return;
 
-  // Nome backup: data UTC (semplice e non ambiguo)
   const d = new Date();
-  const ymd = d.toISOString().slice(0, 10); // YYYY-MM-DD
+  const ymd = d.toISOString().slice(0, 10);
   const backupKey = `backups/${ymd}.json`;
 
   await store.setJSON(backupKey, {
@@ -23,7 +31,7 @@ export default async (req) => {
   });
 };
 
-// Eseguita in timezone UTC (cron in UTC) :contentReference[oaicite:1]{index=1}
+// Eseguita quotidianamente dal cron Netlify (UTC).
 export const config = {
   schedule: "@daily"
 };
