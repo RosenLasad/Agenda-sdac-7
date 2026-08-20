@@ -4288,3 +4288,125 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
   .settingsMenuBtn,.cloudActionBtn{ width:33px; min-width:33px; height:33px; min-height:33px; }
   .loginActionBtn{ min-width:44px; min-height:33px; padding-inline:6px; font-size:11px; }
 }
+
+/* ===== Segnalibri: hover/attivo coerenti con la palette di categoria ===== */
+/*
+  I bookmark sono anche .tab: le regole generiche di .tab:hover/.tab.active
+  applicavano il rosso SDAC a tutte le categorie. Qui ogni segnalibro mantiene
+  invece la propria identita cromatica: hover appena piu vivo, attivo piu scuro.
+*/
+.bookmarkTab--calendar:hover{
+  background:linear-gradient(180deg, rgba(187,34,62,.98), rgba(106,20,36,.99));
+  border-color:rgba(222,77,103,.48);
+  filter:saturate(1.04) brightness(1.03);
+}
+.bookmarkTab--calendar.active,
+.bookmarkTab--calendar.active:hover{
+  background:linear-gradient(180deg, rgba(145,23,46,.99), rgba(76,13,26,.99));
+  border-color:rgba(203,65,88,.46);
+  filter:saturate(1.03) brightness(.97);
+}
+
+.bookmarkTab--notebook:hover{
+  background:linear-gradient(180deg, rgba(76,24,33,.98), rgba(33,17,22,.99));
+  border-color:rgba(139,61,75,.38);
+  filter:saturate(1.04) brightness(1.04);
+}
+.bookmarkTab--notebook.active,
+.bookmarkTab--notebook.active:hover{
+  background:linear-gradient(180deg, rgba(52,15,22,.99), rgba(21,10,14,.99));
+  border-color:rgba(117,49,62,.36);
+  filter:saturate(1.03) brightness(.97);
+}
+
+.bookmarkTab--courses:hover{
+  background:linear-gradient(180deg, rgba(49,99,148,.98), rgba(26,58,91,.99));
+  border-color:rgba(108,174,235,.50);
+  filter:saturate(1.04) brightness(1.03);
+}
+.bookmarkTab--courses.active,
+.bookmarkTab--courses.active:hover{
+  background:linear-gradient(180deg, rgba(32,69,107,.99), rgba(16,38,63,.99));
+  border-color:rgba(83,145,205,.46);
+  filter:saturate(1.03) brightness(.97);
+}
+
+.bookmarkTab--students:hover{
+  background:linear-gradient(180deg, rgba(55,126,83,.98), rgba(29,76,50,.99));
+  border-color:rgba(111,194,142,.48);
+  filter:saturate(1.04) brightness(1.03);
+}
+.bookmarkTab--students.active,
+.bookmarkTab--students.active:hover{
+  background:linear-gradient(180deg, rgba(36,87,56,.99), rgba(18,51,34,.99));
+  border-color:rgba(84,162,113,.44);
+  filter:saturate(1.03) brightness(.97);
+}
+
+.bookmarkTab--administration:hover{
+  background:linear-gradient(180deg, rgba(132,88,31,.98), rgba(85,56,20,.99));
+  border-color:rgba(224,180,94,.50);
+  filter:saturate(1.04) brightness(1.03);
+}
+.bookmarkTab--administration.active,
+.bookmarkTab--administration.active:hover{
+  background:linear-gradient(180deg, rgba(91,60,20,.99), rgba(56,36,13,.99));
+  border-color:rgba(193,145,61,.46);
+  filter:saturate(1.03) brightness(.97);
+}
+
+/* Tema chiaro: stessa logica cromatica, senza ricadere nel rosso generico dei tab. */
+:root[data-theme="light"] body .bookmarkTab--calendar:hover{
+  background:linear-gradient(180deg, rgba(151,72,88,.98), rgba(114,48,62,.99));
+  border-color:rgba(122,48,64,.40);
+}
+:root[data-theme="light"] body .bookmarkTab--calendar.active,
+:root[data-theme="light"] body .bookmarkTab--calendar.active:hover{
+  background:linear-gradient(180deg, rgba(119,51,65,.99), rgba(88,34,47,.99));
+  border-color:rgba(101,39,53,.44);
+  filter:saturate(1.02) brightness(.98);
+}
+
+:root[data-theme="light"] body .bookmarkTab--notebook:hover{
+  background:linear-gradient(180deg, rgba(105,124,100,.98), rgba(78,96,73,.99));
+  border-color:rgba(102,122,93,.38);
+}
+:root[data-theme="light"] body .bookmarkTab--notebook.active,
+:root[data-theme="light"] body .bookmarkTab--notebook.active:hover{
+  background:linear-gradient(180deg, rgba(79,95,75,.99), rgba(56,70,53,.99));
+  border-color:rgba(87,103,79,.40);
+  filter:saturate(1.02) brightness(.98);
+}
+
+:root[data-theme="light"] body .bookmarkTab--courses:hover{
+  background:linear-gradient(180deg, rgba(224,241,254,.99), rgba(196,220,241,.99));
+  border-color:rgba(72,128,178,.38);
+}
+:root[data-theme="light"] body .bookmarkTab--courses.active,
+:root[data-theme="light"] body .bookmarkTab--courses.active:hover{
+  background:linear-gradient(180deg, rgba(204,229,248,.99), rgba(176,207,232,.99));
+  border-color:rgba(61,113,160,.42);
+  filter:saturate(1.02) brightness(.99);
+}
+
+:root[data-theme="light"] body .bookmarkTab--students:hover{
+  background:linear-gradient(180deg, rgba(226,246,232,.99), rgba(198,229,208,.99));
+  border-color:rgba(67,137,91,.36);
+}
+:root[data-theme="light"] body .bookmarkTab--students.active,
+:root[data-theme="light"] body .bookmarkTab--students.active:hover{
+  background:linear-gradient(180deg, rgba(207,235,216,.99), rgba(181,217,193,.99));
+  border-color:rgba(58,119,80,.40);
+  filter:saturate(1.02) brightness(.99);
+}
+
+:root[data-theme="light"] body .bookmarkTab--administration:hover{
+  background:linear-gradient(180deg, rgba(251,239,207,.99), rgba(229,205,154,.99));
+  border-color:rgba(177,126,41,.38);
+}
+:root[data-theme="light"] body .bookmarkTab--administration.active,
+:root[data-theme="light"] body .bookmarkTab--administration.active:hover{
+  background:linear-gradient(180deg, rgba(238,218,174,.99), rgba(212,184,126,.99));
+  border-color:rgba(153,106,33,.42);
+  filter:saturate(1.02) brightness(.99);
+}
