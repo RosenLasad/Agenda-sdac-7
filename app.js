@@ -2,6 +2,7 @@
     "use strict";
 
     var START_YEAR = 2026;
+    var CURRENT_DATA_VERSION = 3;
     var LEGACY_STORAGE_KEY = "sdac_agenda_2026_v1";
     var STORAGE_KEY_PREFIX = "sdac_agenda_2026_v2_";
     var THEME_KEY = "sdac_agenda_theme";
@@ -368,15 +369,37 @@
 
     function normalizeFinancePayment(raw){
       var p = raw && typeof raw === "object" ? raw : {};
+      var nowISO = new Date().toISOString();
+      var createdAt = p.createdAt || nowISO;
       var kind = String(p.kind || "payment").toLowerCase() === "deposit" ? "deposit" : "payment";
       return {
-        id:p.id || uid(),
+        id:String(p.id || uid()),
         kind:kind,
         amount:Math.max(0, Number(p.amount || 0) || 0),
         date:String(p.date || "").slice(0,10),
         method:String(p.method || "").trim(),
         note:String(p.note || "").trim(),
-        createdAt:p.createdAt || new Date().toISOString()
+        createdAt:createdAt,
+        updatedAt:p.updatedAt || createdAt,
+        createdBy:normalizeEmail(p.createdBy || p.createdByEmail || ""),
+        createdByRole:String(p.createdByRole || "").toLowerCase(),
+        updatedBy:normalizeEmail(p.updatedBy || p.updatedByEmail || p.createdBy || p.createdByEmail || ""),
+        updatedByRole:String(p.updatedByRole || p.createdByRole || "").toLowerCase()
+      };
+    }
+
+    function normalizeFinanceAuditEvent(raw){
+      var e = raw && typeof raw === "object" ? raw : {};
+      return {
+        id:String(e.id || uid()),
+        type:String(e.type || "finance_update"),
+        paymentId:String(e.paymentId || ""),
+        amount:Math.max(0, Number(e.amount || 0) || 0),
+        date:String(e.date || "").slice(0,10),
+        detail:String(e.detail || "").trim(),
+        actorEmail:normalizeEmail(e.actorEmail || e.email || ""),
+        actorRole:String(e.actorRole || e.role || "").toLowerCase(),
+        at:e.at || e.createdAt || new Date().toISOString()
       };
     }
 
@@ -388,7 +411,8 @@
         payments:Array.isArray(f.payments) ? f.payments.map(normalizeFinancePayment).filter(function(p){ return p.amount > 0; }) : [],
         nextDueDate:String(f.nextDueDate || "").slice(0,10),
         nextDueNote:String(f.nextDueNote || "").trim(),
-        notes:String(f.notes || "").trim()
+        notes:String(f.notes || "").trim(),
+        audit:Array.isArray(f.audit) ? f.audit.map(normalizeFinanceAuditEvent).slice(-300) : []
       };
     }
 
@@ -509,6 +533,8 @@
       if(!Array.isArray(next.contacts)) next.contacts = [];
       next.academy = normalizeAcademyState(next.academy);
       next.administration = normalizeAdministrationState(next.administration);
+      next.version = next.version || "v1-notes";
+      next.dataVersion = CURRENT_DATA_VERSION;
       next.updatedAt = next.updatedAt || new Date().toISOString();
       return next;
     }
@@ -516,6 +542,7 @@
     function defaultState(){
       return {
         version:"v1-notes",
+        dataVersion:CURRENT_DATA_VERSION,
         updatedAt:new Date().toISOString(),
         events:{},
         todos:[],
@@ -582,6 +609,7 @@
       if(role !== "docente") teacherAcademy.years[teacherAcademy.activeYear] = { courses:[], students:[] };
       return normalizeLoadedState({
         version: src.version || "v1-notes",
+        dataVersion: src.dataVersion || CURRENT_DATA_VERSION,
         updatedAt: src.updatedAt,
         events: src.events || {},
         todos: [],
@@ -609,7 +637,11 @@
         }
         var obj = JSON.parse(raw);
         if(!obj || typeof obj !== "object") return defaultState();
-        return projectStateForRole(obj, getCurrentAccessRole(), getCurrentUserEmail());
+        var projected = projectStateForRole(obj, getCurrentAccessRole(), getCurrentUserEmail());
+        // Persisti subito la forma normalizzata/migrata: gli ID generati per
+        // entita legacy diventano stabili anche prima della prossima modifica.
+        try{ localStorage.setItem(storageKey, JSON.stringify(projected)); }catch(e){}
+        return projected;
       }catch(e){
         return defaultState();
       }
@@ -884,14 +916,25 @@
 
     function applyRemoteState(remote){
       if(!remote || typeof remote !== "object") return false;
+      var remoteBaseUpdatedAt = remote.updatedAt || null;
+      var needsSchemaUpgrade = Number(remote.dataVersion || 0) < CURRENT_DATA_VERSION;
       state = normalizeLoadedState(remote);
-      remoteLastKnownUpdatedAt = state.updatedAt || remoteLastKnownUpdatedAt;
-      if(state.updatedAt) setStoredRemoteBaseUpdatedAt(state.updatedAt);
+      remoteLastKnownUpdatedAt = remoteBaseUpdatedAt || state.updatedAt || remoteLastKnownUpdatedAt;
+      if(remoteBaseUpdatedAt) setStoredRemoteBaseUpdatedAt(remoteBaseUpdatedAt);
       remoteConflictPending = false;
+      if(needsSchemaUpgrade){
+        // La normalizzazione puo aver creato ID mancanti o nuovi campi.
+        // Diamo alla copia migrata un nuovo timestamp e salviamola sul cloud,
+        // cosi tutti gli account condividono la stessa migrazione stabile.
+        state.updatedAt = new Date().toISOString();
+      }
       try{ localStorage.setItem(getStorageKey(), JSON.stringify(state)); }catch(e){}
       syncNotesUiFromState();
       renderAll();
       updateStorageStatus(true);
+      if(needsSchemaUpgrade){
+        setTimeout(function(){ scheduleRemoteSave(true, true, true); }, 0);
+      }
       return true;
     }
 
@@ -3004,7 +3047,15 @@ todoActiveList.appendChild(item);
         return;
       }
       try{
-        var data = JSON.stringify(state, null, 2);
+        var normalizedState=normalizeLoadedState(state);
+        var backup={
+          backupFormat:"sdac-agenda",
+          backupVersion:1,
+          dataVersion:CURRENT_DATA_VERSION,
+          exportedAt:new Date().toISOString(),
+          state:normalizedState
+        };
+        var data = JSON.stringify(backup, null, 2);
         var blob = new Blob([data], { type:"application/json" });
         var url = URL.createObjectURL(blob);
         var a = document.createElement("a");
@@ -3032,8 +3083,13 @@ todoActiveList.appendChild(item);
         try{
           var obj = JSON.parse(String(reader.result || ""));
           if(!obj || typeof obj !== "object") throw new Error("invalid");
+          var importedState = obj.backupFormat === "sdac-agenda" && obj.state && typeof obj.state === "object" ? obj.state : obj;
+          var looksLikeAgenda = importedState && typeof importedState === "object" && (importedState.events || importedState.todos || importedState.notes || importedState.contacts || importedState.academy || importedState.administration || importedState.version);
+          if(!looksLikeAgenda) throw new Error("not-an-agenda-backup");
+          var importedDataVersion=Number(importedState.dataVersion || obj.dataVersion || 0) || 0;
+          if(importedDataVersion>CURRENT_DATA_VERSION) throw new Error("newer-data-version");
 
-          state = normalizeLoadedState(obj);
+          state = normalizeLoadedState(importedState);
           state.updatedAt = new Date().toISOString();
 
           localStorage.setItem(getStorageKey(), JSON.stringify(state));
@@ -3044,7 +3100,8 @@ todoActiveList.appendChild(item);
           if(isLoggedIn()) scheduleRemoteSave();
         }catch(err){
           updateStorageStatus(false);
-          alert("Import fallito: file non valido o corrotto.");
+          if(err && err.message === "newer-data-version") alert("Questo backup e stato creato con una versione piu recente di SDAC Agenda. Aggiorna prima l'app e riprova.");
+          else alert("Import fallito: file non valido o corrotto.");
         }finally{
           importFile.value = "";
         }
@@ -3309,10 +3366,39 @@ todoActiveList.appendChild(item);
       return (enrollment && Array.isArray(enrollment.payments) ? enrollment.payments : []).reduce(function(sum,p){ return sum + Math.max(0, Number(p.amount || 0) || 0); }, 0);
     }
 
+    function financeMetrics(enrollment){
+      var fee=Math.max(0,Number(enrollment && enrollment.courseFee || 0) || 0);
+      var paid=paymentTotal(enrollment);
+      return { fee:fee, paid:paid, balance:Math.max(0,fee-paid), overpaid:Math.max(0,paid-fee) };
+    }
+
+    function currentAuditActor(){
+      return { email:getCurrentUserEmail(), role:getCurrentAccessRole(), at:new Date().toISOString() };
+    }
+
+    function appendFinanceAudit(enrollment, raw){
+      if(!enrollment) return;
+      if(!Array.isArray(enrollment.audit)) enrollment.audit=[];
+      var actor=currentAuditActor();
+      enrollment.audit.push(normalizeFinanceAuditEvent({
+        id:uid(),
+        type:raw && raw.type || "finance_update",
+        paymentId:raw && raw.paymentId || "",
+        amount:raw && raw.amount || 0,
+        date:raw && raw.date || "",
+        detail:raw && raw.detail || "",
+        actorEmail:actor.email,
+        actorRole:actor.role,
+        at:actor.at
+      }));
+      if(enrollment.audit.length>300) enrollment.audit=enrollment.audit.slice(-300);
+    }
+
     function financeStatus(enrollment){
-      var fee = Math.max(0, Number(enrollment && enrollment.courseFee || 0));
-      var paid = paymentTotal(enrollment);
-      var balance = Math.max(0, fee - paid);
+      var metrics = financeMetrics(enrollment);
+      var fee = metrics.fee;
+      var paid = metrics.paid;
+      var balance = metrics.balance;
       var today = isoDate(getTodayDate());
       if(fee > 0 && balance <= 0.009) return { key:"settled", icon:"✅", label:"Saldato" };
       if(enrollment && enrollment.nextDueDate && enrollment.nextDueDate < today && balance > 0) return { key:"overdue", icon:"🔴", label:"Scaduto" };
@@ -3406,10 +3492,10 @@ todoActiveList.appendChild(item);
         (st.courseIds||[]).forEach(function(cid){
           var course=getCourseById(cid); if(!course)return;
           var enrollment=getStudentFinanceEnrollment(st,cid,true);
-          entries.push({student:st,course:course,enrollment:enrollment,paid:paymentTotal(enrollment),fee:Number(enrollment.courseFee||0),status:financeStatus(enrollment)});
+          var metrics=financeMetrics(enrollment);
+          entries.push({student:st,course:course,enrollment:enrollment,paid:metrics.paid,fee:metrics.fee,balance:metrics.balance,overpaid:metrics.overpaid,status:financeStatus(enrollment)});
         });
       });
-      entries.forEach(function(e){ e.balance=Math.max(0,e.fee-e.paid); });
       return entries;
     }
 
@@ -3496,7 +3582,7 @@ todoActiveList.appendChild(item);
     function refreshFinanceModal(){
       if(!financeStudentId||!financeCourseId)return;
       var st=getStudentById(financeStudentId.value), course=getCourseById(financeCourseId.value); if(!st||!course)return;
-      var e=getStudentFinanceEnrollment(st,course.id,true); var paid=paymentTotal(e), fee=Number(e.courseFee||0), balance=Math.max(0,fee-paid), status=financeStatus(e);
+      var e=getStudentFinanceEnrollment(st,course.id,true); var metrics=financeMetrics(e), paid=metrics.paid, fee=metrics.fee, balance=metrics.balance, status=financeStatus(e);
       financeModalTitle.textContent=fullStudentName(st); financeModalCourse.textContent=course.icon+" "+course.name;
       financeFeeDisplay.textContent=formatEuro(fee); financePaidDisplay.textContent=formatEuro(paid); financeBalanceDisplay.textContent=formatEuro(balance); financeStatusDisplay.textContent=status.icon+" "+status.label; financeStatusDisplay.setAttribute("data-status",status.key);
       financeCourseFee.value=String(fee); financeNextDueDate.value=e.nextDueDate||""; financeNextDueNote.value=e.nextDueNote||"";
@@ -3506,7 +3592,16 @@ todoActiveList.appendChild(item);
       payments.forEach(function(p){
         var row=document.createElement("div"); row.className="financePaymentRow"; var kind=p.kind==="deposit"?"Acconto":"Pagamento";
         row.innerHTML='<span class="financePaymentKind">'+kind+'</span><span class="financePaymentAmount">'+escapeHtml(formatEuro(p.amount))+'</span><span class="financePaymentMeta"><span>'+escapeHtml(p.date?formatSchoolDate(p.date):"Data non indicata")+(p.method?' · '+escapeHtml(p.method):'')+'</span>'+(p.note?'<span>'+escapeHtml(p.note)+'</span>':'')+'</span><button class="smallBtn danger" type="button" title="Elimina pagamento">Elimina</button>';
-        row.querySelector("button").addEventListener("click",function(){ if(!canMutateSchoolData())return; if(!confirm("Eliminare questo pagamento di "+formatEuro(p.amount)+"?"))return; e.payments=e.payments.filter(function(x){return x.id!==p.id;}); touchAndSave(); refreshFinanceModal(); renderAdministration(); renderStudents(); });
+        row.querySelector("button").addEventListener("click",function(){
+          if(!canMutateSchoolData())return;
+          var paymentDate=p.date?formatSchoolDate(p.date):"data non indicata";
+          var message="Eliminare il pagamento di "+formatEuro(p.amount)+" del "+paymentDate+" per "+fullStudentName(st)+" · "+course.name+"?\n\nQuesta operazione aggiornera subito il residuo e verra annotata nel registro tecnico delle modifiche.";
+          if(!confirm(message))return;
+          appendFinanceAudit(e,{type:"payment_deleted",paymentId:p.id,amount:p.amount,date:p.date,detail:(p.kind==="deposit"?"Acconto":"Pagamento")+" eliminato"});
+          e.payments=e.payments.filter(function(x){return x.id!==p.id;});
+          st.updatedAt=new Date().toISOString();
+          touchAndSave(); refreshFinanceModal(); renderAdministration(); renderStudents();
+        });
         financePaymentList.appendChild(row);
       });
       var noPayments=!(e.payments||[]).length; financePaymentKind.value=noPayments?"deposit":"payment"; if(noPayments&&!financePaymentAmount.value)financePaymentAmount.value="300";
@@ -3521,11 +3616,21 @@ todoActiveList.appendChild(item);
     function closeFinanceModal(){if(!financeOverlay)return;financeOverlay.style.display="none";financeOverlay.classList.remove("open");financeOverlay.setAttribute("aria-hidden","true");}
     function saveFinanceSettings(){
       if(!canCurrentRoleAccess("administration")||!canMutateSchoolData())return;
-      var st=getStudentById(financeStudentId.value),course=getCourseById(financeCourseId.value);if(!st||!course)return;var e=getStudentFinanceEnrollment(st,course.id,true);var fee=Number(financeCourseFee.value);if(!Number.isFinite(fee)||fee<0){alert("Inserisci una quota corso valida.");return;}e.courseFee=fee;e.nextDueDate=String(financeNextDueDate.value||"").slice(0,10);e.nextDueNote=String(financeNextDueNote.value||"").trim();st.updatedAt=new Date().toISOString();touchAndSave();refreshFinanceModal();renderAdministration();renderStudents();
+      var st=getStudentById(financeStudentId.value),course=getCourseById(financeCourseId.value);if(!st||!course)return;
+      var e=getStudentFinanceEnrollment(st,course.id,true);var fee=Number(financeCourseFee.value);if(!Number.isFinite(fee)||fee<0){alert("Inserisci una quota corso valida.");return;}
+      var nextDate=String(financeNextDueDate.value||"").slice(0,10), nextNote=String(financeNextDueNote.value||"").trim();
+      var changed=Number(e.courseFee||0)!==fee || String(e.nextDueDate||"")!==nextDate || String(e.nextDueNote||"")!==nextNote;
+      if(changed) appendFinanceAudit(e,{type:"finance_settings",detail:"Quota/scadenza aggiornata"});
+      e.courseFee=fee;e.nextDueDate=nextDate;e.nextDueNote=nextNote;st.updatedAt=new Date().toISOString();touchAndSave();refreshFinanceModal();renderAdministration();renderStudents();
     }
     function addFinancePayment(){
       if(!canCurrentRoleAccess("administration")||!canMutateSchoolData())return;
-      var st=getStudentById(financeStudentId.value),course=getCourseById(financeCourseId.value);if(!st||!course)return;var e=getStudentFinanceEnrollment(st,course.id,true);var amount=Number(financePaymentAmount.value);if(!Number.isFinite(amount)||amount<=0){alert("Inserisci l'importo realmente pagato.");return;}e.payments.push(normalizeFinancePayment({kind:financePaymentKind.value,amount:amount,date:financePaymentDate.value||isoDate(getTodayDate()),method:financePaymentMethod.value,note:financePaymentNote.value}));st.updatedAt=new Date().toISOString();financePaymentAmount.value="";financePaymentNote.value="";financePaymentKind.value="payment";touchAndSave();refreshFinanceModal();renderAdministration();renderStudents();
+      var st=getStudentById(financeStudentId.value),course=getCourseById(financeCourseId.value);if(!st||!course)return;var e=getStudentFinanceEnrollment(st,course.id,true);var amount=Number(financePaymentAmount.value);if(!Number.isFinite(amount)||amount<=0){alert("Inserisci l'importo realmente pagato.");return;}
+      var actor=currentAuditActor();
+      var payment=normalizeFinancePayment({kind:financePaymentKind.value,amount:amount,date:financePaymentDate.value||isoDate(getTodayDate()),method:financePaymentMethod.value,note:financePaymentNote.value,createdAt:actor.at,updatedAt:actor.at,createdBy:actor.email,createdByRole:actor.role,updatedBy:actor.email,updatedByRole:actor.role});
+      e.payments.push(payment);
+      appendFinanceAudit(e,{type:"payment_added",paymentId:payment.id,amount:payment.amount,date:payment.date,detail:payment.kind==="deposit"?"Acconto registrato":"Pagamento registrato"});
+      st.updatedAt=new Date().toISOString();financePaymentAmount.value="";financePaymentNote.value="";financePaymentKind.value="payment";touchAndSave();refreshFinanceModal();renderAdministration();renderStudents();
     }
 
     function renderAll(){

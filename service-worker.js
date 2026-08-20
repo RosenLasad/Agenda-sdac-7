@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-agenda-shell-v12-amministrazione";
+const CACHE_NAME = "sdac-agenda-shell-v13-consolidamento";
 
 const APP_SHELL = [
   "./",
@@ -77,7 +77,12 @@ self.addEventListener("fetch", (event) => {
         })
         .catch(async () => {
           const cached = await caches.match(request);
-          return cached || caches.match("./index.html");
+          if (cached) return cached;
+          // Solo una navigazione puo ricevere index.html come fallback.
+          // Per JS/CSS mancanti e meglio fallire esplicitamente che
+          // restituire HTML e provocare un errore di parsing fuorviante.
+          if (isNavigate) return caches.match("./index.html");
+          return Response.error();
         })
     );
     return;

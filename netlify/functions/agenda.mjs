@@ -4,6 +4,7 @@ import { getUser } from "@netlify/identity";
 const SHARED_STATE_KEY = "state-v2-shared-sdac";
 const SHARED_META_KEY = "state-v2-shared-sdac-meta";
 const ALLOWED_ROLES = new Set(["admin", "socio", "docente"]);
+const CURRENT_DATA_VERSION = 3;
 
 function safeKey(s) {
   return String(s || "").replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -82,6 +83,117 @@ function normalizeEmail(value) {
   return String(value || "").trim().toLowerCase();
 }
 
+function financePaymentComparable(payment) {
+  const p = payment && typeof payment === "object" ? payment : {};
+  return JSON.stringify({
+    kind: String(p.kind || "payment"),
+    amount: Math.max(0, Number(p.amount || 0) || 0),
+    date: String(p.date || "").slice(0, 10),
+    method: String(p.method || "").trim(),
+    note: String(p.note || "").trim()
+  });
+}
+
+function makeFinanceAuditEvent(type, actorEmail, actorRole, extra = {}) {
+  return {
+    id: `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`,
+    type,
+    paymentId: String(extra.paymentId || ""),
+    amount: Math.max(0, Number(extra.amount || 0) || 0),
+    date: String(extra.date || "").slice(0, 10),
+    detail: String(extra.detail || "").trim(),
+    actorEmail: normalizeEmail(actorEmail),
+    actorRole: String(actorRole || "").toLowerCase(),
+    at: new Date().toISOString()
+  };
+}
+
+function stampFinanceMutations(existingAcademy, incomingAcademy, user, role) {
+  const incoming = incomingAcademy && typeof incomingAcademy === "object"
+    ? cloneJson(incomingAcademy)
+    : { activeYear:"2026/2027", years:{} };
+  const existing = existingAcademy && typeof existingAcademy === "object" ? existingAcademy : { years:{} };
+  const actorEmail = normalizeEmail(user?.email || "");
+  const now = new Date().toISOString();
+
+  for (const year of Object.keys(incoming.years || {})) {
+    const incomingStudents = Array.isArray(incoming.years?.[year]?.students) ? incoming.years[year].students : [];
+    const existingStudents = Array.isArray(existing.years?.[year]?.students) ? existing.years[year].students : [];
+    const existingStudentById = new Map(existingStudents.map((st) => [String(st?.id || ""), st]));
+
+    for (const student of incomingStudents) {
+      const previousStudent = existingStudentById.get(String(student?.id || ""));
+      const incomingEnrollments = student?.finance?.enrollments && typeof student.finance.enrollments === "object" ? student.finance.enrollments : {};
+      const previousEnrollments = previousStudent?.finance?.enrollments && typeof previousStudent.finance.enrollments === "object" ? previousStudent.finance.enrollments : {};
+
+      for (const courseId of Object.keys(incomingEnrollments)) {
+        const enrollment = incomingEnrollments[courseId] && typeof incomingEnrollments[courseId] === "object" ? incomingEnrollments[courseId] : {};
+        const previousEnrollment = previousEnrollments[courseId] && typeof previousEnrollments[courseId] === "object" ? previousEnrollments[courseId] : {};
+        const previousPayments = Array.isArray(previousEnrollment.payments) ? previousEnrollment.payments : [];
+        const incomingPayments = Array.isArray(enrollment.payments) ? enrollment.payments : [];
+        const previousById = new Map(previousPayments.map((payment) => [String(payment?.id || ""), payment]));
+        const incomingIds = new Set();
+        const audit = Array.isArray(previousEnrollment.audit) ? cloneJson(previousEnrollment.audit).slice(-300) : [];
+
+        enrollment.payments = incomingPayments.map((payment) => {
+          const nextPayment = payment && typeof payment === "object" ? cloneJson(payment) : {};
+          const paymentId = String(nextPayment.id || `${Date.now().toString(16)}-${Math.random().toString(16).slice(2)}`);
+          nextPayment.id = paymentId;
+          incomingIds.add(paymentId);
+          const previous = previousById.get(paymentId);
+
+          if (!previous) {
+            nextPayment.createdAt = now;
+            nextPayment.updatedAt = now;
+            nextPayment.createdBy = actorEmail;
+            nextPayment.createdByRole = role;
+            nextPayment.updatedBy = actorEmail;
+            nextPayment.updatedByRole = role;
+            audit.push(makeFinanceAuditEvent("payment_added", actorEmail, role, { paymentId, amount:nextPayment.amount, date:nextPayment.date, detail:String(nextPayment.kind || "payment") === "deposit" ? "Acconto registrato" : "Pagamento registrato" }));
+            return nextPayment;
+          }
+
+          const changed = financePaymentComparable(previous) !== financePaymentComparable(nextPayment);
+          nextPayment.createdAt = previous.createdAt || nextPayment.createdAt || now;
+          nextPayment.createdBy = normalizeEmail(previous.createdBy || "");
+          nextPayment.createdByRole = String(previous.createdByRole || "").toLowerCase();
+          if (changed) {
+            nextPayment.updatedAt = now;
+            nextPayment.updatedBy = actorEmail;
+            nextPayment.updatedByRole = role;
+            audit.push(makeFinanceAuditEvent("payment_updated", actorEmail, role, { paymentId, amount:nextPayment.amount, date:nextPayment.date, detail:"Pagamento modificato" }));
+          } else {
+            nextPayment.updatedAt = previous.updatedAt || nextPayment.createdAt;
+            nextPayment.updatedBy = normalizeEmail(previous.updatedBy || previous.createdBy || "");
+            nextPayment.updatedByRole = String(previous.updatedByRole || previous.createdByRole || "").toLowerCase();
+          }
+          return nextPayment;
+        });
+
+        for (const previousPayment of previousPayments) {
+          const paymentId = String(previousPayment?.id || "");
+          if (paymentId && !incomingIds.has(paymentId)) {
+            audit.push(makeFinanceAuditEvent("payment_deleted", actorEmail, role, { paymentId, amount:previousPayment.amount, date:previousPayment.date, detail:String(previousPayment.kind || "payment") === "deposit" ? "Acconto eliminato" : "Pagamento eliminato" }));
+          }
+        }
+
+        const settingsChanged =
+          Number(previousEnrollment.courseFee || 0) !== Number(enrollment.courseFee || 0) ||
+          String(previousEnrollment.nextDueDate || "") !== String(enrollment.nextDueDate || "") ||
+          String(previousEnrollment.nextDueNote || "") !== String(enrollment.nextDueNote || "") ||
+          String(previousEnrollment.notes || "") !== String(enrollment.notes || "");
+        if (settingsChanged && Object.keys(previousEnrollment).length) {
+          audit.push(makeFinanceAuditEvent("finance_settings", actorEmail, role, { detail:"Quota/scadenza aggiornata" }));
+        }
+
+        enrollment.audit = audit.slice(-300);
+      }
+    }
+  }
+
+  return incoming;
+}
+
 function teacherCourseIds(academy, email) {
   const userEmail = normalizeEmail(email);
   const ids = new Set();
@@ -156,6 +268,7 @@ function projectStateForRole(data, role, user) {
 
   return {
     version: data.version || "v1-notes",
+    dataVersion: Math.max(Number(data.dataVersion || 0), CURRENT_DATA_VERSION),
     updatedAt: data.updatedAt || null,
     events: cloneJson(data.events || {}),
     todos: [],
@@ -192,6 +305,7 @@ function mergeStateForRole(existing, incoming, role, user) {
   return {
     ...current,
     version: current.version || payload.version || "v1-notes",
+    dataVersion: Math.max(Number(current.dataVersion || 0), Number(payload.dataVersion || 0), CURRENT_DATA_VERSION),
     events: payload.events && typeof payload.events === "object" ? payload.events : (current.events || {}),
     academy: mergeAcademyForTeacher(current.academy, payload.academy, user?.email || "")
   };
@@ -312,7 +426,12 @@ export default async (req, context) => {
         }
       }
 
-      const nextState = mergeStateForRole(current, payload, role, user);
+      const sanitizedPayload = cloneJson(payload);
+      if (role === "admin" || role === "socio") {
+        sanitizedPayload.academy = stampFinanceMutations(current?.academy, sanitizedPayload.academy, user, role);
+      }
+      const nextState = mergeStateForRole(current, sanitizedPayload, role, user);
+      nextState.dataVersion = Math.max(Number(nextState.dataVersion || 0), CURRENT_DATA_VERSION);
       nextState.updatedAt = new Date().toISOString();
 
       await store.setJSON(SHARED_STATE_KEY, nextState);
