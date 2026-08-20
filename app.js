@@ -1232,7 +1232,6 @@
     var tabs = Array.prototype.slice.call(document.querySelectorAll(".tab"));
     var viewCalendar = $("#view-calendar");
     var viewNotebook = $("#view-notebook");
-    var viewContacts = $("#view-contacts");
     var viewToday = $("#view-today");
     var viewCourses = $("#view-courses");
     var viewStudents = $("#view-students");
@@ -1384,6 +1383,7 @@
 
     var todayPrevBtn = $("#todayPrevBtn");
     var todayNextBtn = $("#todayNextBtn");
+    var topTodayLine = $("#todayLine");
 
     function roleDisplayName(role){
       if(role === "admin") return "Admin";
@@ -1418,7 +1418,6 @@
       try{ document.body.setAttribute("data-sdac-role", currentAccessRole); }catch(e){}
 
       var notebookAllowed = canCurrentRoleAccess("notebook");
-      var contactsAllowed = canCurrentRoleAccess("contacts");
       var settingsAllowed = canCurrentRoleAccess("settings");
       var coursesAllowed = canCurrentRoleAccess("courses");
       var studentsAllowed = canCurrentRoleAccess("students");
@@ -1427,7 +1426,6 @@
       tabs.forEach(function(tab){
         var view = tab.getAttribute("data-view");
         if(view === "notebook") setRoleLockedElement(tab, !notebookAllowed, roleRestrictionMessage("notebook"));
-        else if(view === "contacts") setRoleLockedElement(tab, !contactsAllowed, roleRestrictionMessage("contacts"));
         else if(view === "courses") setRoleLockedElement(tab, !coursesAllowed, roleRestrictionMessage("courses"));
         else if(view === "students") setRoleLockedElement(tab, !studentsAllowed, roleRestrictionMessage("students"));
         else if(view === "administration") setRoleLockedElement(tab, !administrationAllowed, roleRestrictionMessage("administration"));
@@ -1440,7 +1438,7 @@
       var todoPanelCard = todoMiniPanel && todoMiniPanel.closest ? todoMiniPanel.closest(".todoPanelCard") : null;
       if(todoPanelCard) todoPanelCard.classList.toggle("roleFeatureHidden", !notebookAllowed);
 
-      if((currentView === "notebook" && !notebookAllowed) || (currentView === "contacts" && !contactsAllowed) || (currentView === "courses" && !coursesAllowed) || (currentView === "students" && !studentsAllowed) || (currentView === "administration" && !administrationAllowed)){
+      if((currentView === "notebook" && !notebookAllowed) || (currentView === "courses" && !coursesAllowed) || (currentView === "students" && !studentsAllowed) || (currentView === "administration" && !administrationAllowed)){
         setView("calendar", true);
       }
       if(currentView === "courses") renderCourses();
@@ -1938,7 +1936,7 @@ wireCollapse(notesListCard);
 wireCollapse(notesEditorCard);
 resetEventForm();
     function setView(view, silent){
-      if((view === "notebook" && !canCurrentRoleAccess("notebook")) || (view === "contacts" && !canCurrentRoleAccess("contacts")) || (view === "courses" && !canCurrentRoleAccess("courses")) || (view === "students" && !canCurrentRoleAccess("students")) || (view === "administration" && !canCurrentRoleAccess("administration"))){
+      if((view === "notebook" && !canCurrentRoleAccess("notebook")) || (view === "courses" && !canCurrentRoleAccess("courses")) || (view === "students" && !canCurrentRoleAccess("students")) || (view === "administration" && !canCurrentRoleAccess("administration"))){
         if(!silent) window.alert(roleRestrictionMessage(view));
         return false;
       }
@@ -1946,8 +1944,12 @@ resetEventForm();
       tabs.forEach(function(t){ t.classList.toggle("active", t.getAttribute("data-view") === view); });
       if(viewCalendar) viewCalendar.classList.toggle("hidden", view !== "calendar");
       if(viewNotebook) viewNotebook.classList.toggle("hidden", view !== "notebook");
-      if(viewContacts) viewContacts.classList.toggle("hidden", view !== "contacts");
       if(viewToday) viewToday.classList.toggle("hidden", view !== "today");
+      if(topTodayLine){
+        topTodayLine.classList.toggle("isActive", view === "today");
+        if(view === "today") topTodayLine.setAttribute("aria-current", "page");
+        else topTodayLine.removeAttribute("aria-current");
+      }
       if(viewCourses) viewCourses.classList.toggle("hidden", view !== "courses");
       if(viewStudents) viewStudents.classList.toggle("hidden", view !== "students");
       if(viewAdministration) viewAdministration.classList.toggle("hidden", view !== "administration");
@@ -1956,8 +1958,8 @@ resetEventForm();
       if(view === "notebook"){
         renderTodos();
         renderNotes();
+        renderContacts();
       }
-      if(view === "contacts") renderContacts();
       if(view === "today") renderTodayPanel();
       if(view === "courses") renderCourses();
       if(view === "students") renderStudents();
@@ -2077,7 +2079,7 @@ function saveContact(){
   touchAndSave();
   closeContactModal();
   renderContacts();
-  setView("contacts");
+  setView("notebook");
 }
 
 function deleteContact(id){
@@ -3657,6 +3659,13 @@ todoActiveList.appendChild(item);
         }
       });
     });
+
+    if(topTodayLine){
+      topTodayLine.addEventListener("click", function(){
+        todayViewOffset = 0;
+        if(setView("today")) renderTodayPanel();
+      });
+    }
 
     if(todayPrevBtn){
       todayPrevBtn.addEventListener("click", function(){

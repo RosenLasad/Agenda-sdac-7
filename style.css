@@ -4190,3 +4190,101 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
   .administrationOpenBtn{ padding:4px 6px; }
   .administrationAmounts strong{ font-size:11px; }
 }
+
+
+/* ===== Header mobile + Oggi dalla data + Rubrica nel Taccuino (2026-08-21) ===== */
+.todayLineButton{
+  appearance:none;
+  -webkit-appearance:none;
+  display:block;
+  width:auto;
+  min-width:0;
+  border:0;
+  border-radius:7px;
+  background:transparent;
+  padding:1px 3px 2px 0;
+  font-family:var(--serif);
+  cursor:pointer;
+  text-align:left;
+  transition:color .15s ease, background .15s ease, opacity .15s ease;
+}
+.todayLineButton:hover,.todayLineButton:focus-visible{
+  color:#fff;
+  background:rgba(255,255,255,.055);
+  outline:none;
+}
+.todayLineButton:focus-visible{ box-shadow:0 0 0 2px rgba(122,162,255,.22); }
+.todayLineButton.isActive{ color:#fff; }
+:root[data-theme="light"] .todayLineButton:hover,
+:root[data-theme="light"] .todayLineButton:focus-visible,
+:root[data-theme="light"] .todayLineButton.isActive{
+  color:#4b3025;
+  background:rgba(96,65,38,.055);
+}
+
+#view-notebook .notebookContactsCard{
+  grid-column:1 / -1;
+  border-color:color-mix(in srgb, var(--section-accent) 18%, rgba(176,138,74,.42));
+}
+#view-notebook .notebookContactsCard .contactItem:hover,
+#view-notebook .notebookContactsCard .contactItem.expanded{
+  border-color:color-mix(in srgb, var(--section-accent) 34%, rgba(176,138,74,.42));
+}
+#view-notebook .notebookContactsCard .contactCategory{
+  border-color:color-mix(in srgb, var(--section-accent) 30%, rgba(176,138,74,.30));
+  color:var(--section-accent-strong);
+  background:var(--section-tint);
+}
+#view-notebook .notebookContactsCard .contactDetailValue a{
+  color:var(--section-accent-strong);
+  border-bottom-color:var(--section-line);
+}
+#view-notebook .notebookContactsCard #openContactBtn{
+  border-color:color-mix(in srgb, var(--section-accent) 28%, rgba(176,138,74,.35));
+}
+:root[data-theme="light"] #view-notebook .notebookContactsCard .contactCategory{
+  color:var(--section-accent-strong);
+  background:var(--section-tint);
+}
+
+@media (max-width:760px){
+  .headerTop{
+    display:grid;
+    grid-template-columns:minmax(0,1fr) auto;
+    align-items:start;
+    column-gap:8px;
+    row-gap:0;
+    flex-wrap:nowrap;
+  }
+  .headerTop .headLeft{ width:auto; min-width:0; }
+  .actionsBlock{
+    width:auto;
+    min-width:max-content;
+    margin-left:0;
+    align-self:start;
+    gap:4px;
+  }
+  .actionsBlock .actions{ width:auto; gap:5px; }
+  .headerStatusStack{ gap:2px; }
+  .todayLineButton{ max-width:none; white-space:nowrap; }
+}
+@media (max-width:430px){
+  .headerTop{ column-gap:5px; }
+  .brandRow{ gap:6px; }
+  .brandTitle{ font-size:20px; }
+  .themeToggleBtn{ width:30px; min-width:30px; height:30px; }
+  .todayLineButton{ font-size:16px; letter-spacing:.1px; }
+  .settingsMenuBtn,.cloudActionBtn,.loginActionBtn{ min-height:35px; }
+  .settingsMenuBtn,.cloudActionBtn{ width:35px; min-width:35px; height:35px; }
+  .loginActionBtn{ min-width:47px; padding-inline:7px; }
+  .cloudSyncStatus{ min-height:21px; padding:3px 7px; }
+  .sessionRoleBadge{ min-height:18px; padding:2px 6px; }
+}
+@media (max-width:350px){
+  .brandTitle{ font-size:18px; }
+  .todayLineButton{ font-size:14px; }
+  .headerTop{ column-gap:4px; }
+  .actionsBlock .actions{ gap:3px; }
+  .settingsMenuBtn,.cloudActionBtn{ width:33px; min-width:33px; height:33px; min-height:33px; }
+  .loginActionBtn{ min-width:44px; min-height:33px; padding-inline:6px; font-size:11px; }
+}
