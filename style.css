@@ -3350,32 +3350,7 @@ html[data-theme="light"] #view-today .todayFoodChip{
 }
 
 
-/* Cloud sync status and first-load safety lock */
-.actionsBlock{
-  position:relative;
-  z-index:1;
-  display:flex;
-  flex-direction:column;
-  align-items:flex-end;
-  gap:6px;
-  margin-left:auto;
-  min-width:0;
-}
-.cloudSyncStatus{
-  max-width:430px;
-  text-align:right;
-  font-size:11px;
-  line-height:1.35;
-  color:rgba(244,238,221,.78);
-  letter-spacing:.01em;
-  user-select:none;
-}
-.cloudSyncStatus[data-state="ok"]{ color:rgba(195,255,220,.90); }
-.cloudSyncStatus[data-state="syncing"],
-.cloudSyncStatus[data-state="pending"]{ color:rgba(255,228,164,.92); }
-.cloudSyncStatus[data-state="conflict"],
-.cloudSyncStatus[data-state="error"],
-.cloudSyncStatus[data-state="locked"]{ color:rgba(255,178,178,.94); }
+/* Cloud first-load safety lock */
 body.cloudSyncLocked #view-calendar,
 body.cloudSyncLocked #view-notebook,
 body.cloudSyncLocked #view-contacts,
@@ -3384,25 +3359,351 @@ body.cloudSyncLocked #view-today{
   opacity:.62;
   filter:saturate(.8);
 }
-body.cloudSyncLocked .actions,
+
+/* =========================================================
+   SDAC Agenda - Header actions + compact Cloud status (2026-08)
+   ========================================================= */
+.actionsBlock{
+  position:relative;
+  z-index:1;
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  gap:7px;
+  margin-left:auto;
+  min-width:0;
+}
+
+.actionsBlock .actions{
+  display:flex;
+  align-items:center;
+  justify-content:flex-end;
+  gap:8px;
+  flex-wrap:nowrap;
+  margin-left:auto;
+}
+
+.settingsMenuWrap{
+  position:relative;
+  flex:0 0 auto;
+}
+
+.settingsMenuBtn{
+  width:40px;
+  min-width:40px;
+  height:40px;
+  padding:0;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  border-color:rgba(226,205,171,.20);
+  background:rgba(20,18,20,.32);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.035);
+}
+
+.settingsMenuBtn:hover,
+.settingsMenuBtn[aria-expanded="true"]{
+  border-color:rgba(226,205,171,.34);
+  background:rgba(255,255,255,.075);
+}
+
+.settingsMenuBtn .ico{
+  font-size:16px;
+  line-height:1;
+}
+
+.settingsDropdown{
+  position:absolute;
+  top:0;
+  right:calc(100% + 8px);
+  z-index:40;
+  width:156px;
+  padding:6px;
+  border:1px solid rgba(226,205,171,.19);
+  border-radius:13px;
+  background:rgba(27,24,27,.97);
+  box-shadow:0 14px 34px rgba(0,0,0,.34), inset 0 1px 0 rgba(255,255,255,.04);
+  backdrop-filter:blur(14px);
+  -webkit-backdrop-filter:blur(14px);
+}
+
+.settingsDropdown[hidden]{
+  display:none;
+}
+
+.settingsMenuItem{
+  width:100%;
+  min-height:38px;
+  padding:8px 10px;
+  display:flex;
+  align-items:center;
+  gap:9px;
+  border:0;
+  border-radius:9px;
+  background:transparent;
+  color:inherit;
+  font:inherit;
+  font-size:12px;
+  font-weight:650;
+  text-align:left;
+  cursor:pointer;
+}
+
+.settingsMenuItem:hover,
+.settingsMenuItem:focus-visible{
+  outline:none;
+  background:rgba(255,255,255,.075);
+}
+
+.settingsMenuItemIcon{
+  width:20px;
+  flex:0 0 20px;
+  text-align:center;
+  font-size:14px;
+  line-height:1;
+}
+
+.settingsMenuItem--danger{
+  color:rgba(255,190,194,.96);
+}
+
+.settingsMenuItem--danger:hover,
+.settingsMenuItem--danger:focus-visible{
+  background:rgba(255,107,107,.12);
+}
+
+.cloudActionBtn{
+  min-height:40px;
+  padding:8px 12px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
+  gap:7px;
+  border-color:rgba(122,162,255,.34);
+  background:linear-gradient(180deg, rgba(49,61,83,.78), rgba(29,35,49,.86));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 6px 18px rgba(0,0,0,.12);
+  white-space:nowrap;
+}
+
+.cloudActionBtn:hover{
+  border-color:rgba(122,162,255,.58);
+  background:linear-gradient(180deg, rgba(57,72,99,.88), rgba(33,42,59,.94));
+}
+
+.cloudActionBtn .cloudActionIcon{
+  width:18px;
+  text-align:center;
+  font-size:15px;
+  line-height:1;
+}
+
+.cloudActionLabel{
+  font-weight:700;
+  letter-spacing:.015em;
+}
+
+.cloudActionBtn[data-cloud-state="ok"]{
+  border-color:rgba(91,189,129,.34);
+}
+.cloudActionBtn[data-cloud-state="syncing"],
+.cloudActionBtn[data-cloud-state="pending"],
+.cloudActionBtn[data-cloud-state="locked"]{
+  border-color:rgba(224,173,82,.42);
+}
+.cloudActionBtn[data-cloud-state="conflict"],
+.cloudActionBtn[data-cloud-state="error"]{
+  border-color:rgba(230,102,111,.50);
+}
+
+.loginActionBtn{
+  min-height:40px;
+  white-space:nowrap;
+}
+
+.cloudSyncStatus{
+  display:inline-flex;
+  align-items:center;
+  gap:5px;
+  min-height:25px;
+  max-width:100%;
+  padding:4px 9px;
+  border:1px solid rgba(226,205,171,.14);
+  border-radius:999px;
+  background:rgba(18,16,18,.28);
+  color:rgba(244,238,221,.76);
+  font-size:10.5px;
+  line-height:1.15;
+  text-align:right;
+  letter-spacing:.01em;
+  user-select:none;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.025);
+}
+
+.cloudStatusIcon{
+  flex:0 0 auto;
+  font-size:11px;
+  line-height:1;
+}
+.cloudStatusText{
+  overflow:hidden;
+  text-overflow:ellipsis;
+  white-space:nowrap;
+  font-weight:650;
+}
+.cloudStatusMeta{
+  flex:0 0 auto;
+  opacity:.72;
+  font-variant-numeric:tabular-nums;
+}
+
+.cloudSyncStatus[data-state="ok"]{
+  color:rgba(196,247,214,.94);
+  border-color:rgba(91,189,129,.22);
+  background:rgba(49,114,74,.14);
+}
+.cloudSyncStatus[data-state="syncing"],
+.cloudSyncStatus[data-state="pending"],
+.cloudSyncStatus[data-state="locked"]{
+  color:rgba(255,226,163,.96);
+  border-color:rgba(224,173,82,.22);
+  background:rgba(122,89,29,.14);
+}
+.cloudSyncStatus[data-state="conflict"],
+.cloudSyncStatus[data-state="error"]{
+  color:rgba(255,190,194,.96);
+  border-color:rgba(230,102,111,.24);
+  background:rgba(125,45,51,.16);
+}
+
+body.cloudSyncLocked .actionsBlock .actions,
 body.cloudSyncLocked .cloudSyncStatus,
 body.cloudSyncLocked #accountOverlay{
   pointer-events:auto;
 }
-:root[data-theme="light"] .cloudSyncStatus{ color:#745f50; }
-:root[data-theme="light"] .cloudSyncStatus[data-state="ok"]{ color:#306a45; }
+
+:root[data-theme="light"] .settingsMenuBtn{
+  color:#423128;
+  border-color:rgba(116,86,56,.16);
+  background:rgba(255,255,255,.52);
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.82);
+}
+:root[data-theme="light"] .settingsMenuBtn:hover,
+:root[data-theme="light"] .settingsMenuBtn[aria-expanded="true"]{
+  border-color:rgba(116,86,56,.26);
+  background:rgba(102,71,44,.08);
+}
+:root[data-theme="light"] .settingsDropdown{
+  border-color:rgba(116,86,56,.17);
+  background:rgba(250,246,239,.98);
+  box-shadow:0 14px 30px rgba(74,50,28,.14), inset 0 1px 0 rgba(255,255,255,.9);
+}
+:root[data-theme="light"] .settingsMenuItem{
+  color:#4f3b30;
+}
+:root[data-theme="light"] .settingsMenuItem:hover,
+:root[data-theme="light"] .settingsMenuItem:focus-visible{
+  background:rgba(102,71,44,.08);
+}
+:root[data-theme="light"] .settingsMenuItem--danger{
+  color:#963e47;
+}
+:root[data-theme="light"] .settingsMenuItem--danger:hover,
+:root[data-theme="light"] .settingsMenuItem--danger:focus-visible{
+  background:rgba(166,57,69,.10);
+}
+:root[data-theme="light"] .cloudActionBtn{
+  color:#423128;
+  border-color:rgba(85,105,137,.22);
+  background:linear-gradient(180deg, rgba(255,255,255,.82), rgba(240,232,218,.88));
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.9), 0 5px 14px rgba(74,50,28,.07);
+}
+:root[data-theme="light"] .cloudActionBtn:hover{
+  border-color:rgba(85,105,137,.36);
+  background:linear-gradient(180deg, rgba(255,255,255,.96), rgba(237,228,211,.96));
+}
+:root[data-theme="light"] .cloudSyncStatus{
+  color:#745f50;
+  border-color:rgba(116,86,56,.13);
+  background:rgba(255,255,255,.42);
+}
+:root[data-theme="light"] .cloudSyncStatus[data-state="ok"]{
+  color:#2e6c45;
+  border-color:rgba(48,106,69,.17);
+  background:rgba(82,151,105,.09);
+}
 :root[data-theme="light"] .cloudSyncStatus[data-state="syncing"],
-:root[data-theme="light"] .cloudSyncStatus[data-state="pending"]{ color:#8a6630; }
+:root[data-theme="light"] .cloudSyncStatus[data-state="pending"],
+:root[data-theme="light"] .cloudSyncStatus[data-state="locked"]{
+  color:#805d24;
+  border-color:rgba(138,102,48,.18);
+  background:rgba(188,139,54,.09);
+}
 :root[data-theme="light"] .cloudSyncStatus[data-state="conflict"],
-:root[data-theme="light"] .cloudSyncStatus[data-state="error"],
-:root[data-theme="light"] .cloudSyncStatus[data-state="locked"]{ color:#9a3f46; }
+:root[data-theme="light"] .cloudSyncStatus[data-state="error"]{
+  color:#963e47;
+  border-color:rgba(154,63,70,.18);
+  background:rgba(166,57,69,.08);
+}
+
 @media (max-width: 760px){
   .actionsBlock{
     width:100%;
     align-items:flex-end;
+    gap:6px;
+  }
+  .actionsBlock .actions{
+    width:100%;
+    justify-content:flex-end;
+    gap:6px;
+  }
+  .settingsMenuBtn,
+  .cloudActionBtn,
+  .loginActionBtn{
+    min-height:37px;
+  }
+  .settingsMenuBtn{
+    width:37px;
+    min-width:37px;
+    height:37px;
+  }
+  .cloudActionBtn{
+    padding-inline:10px;
   }
   .cloudSyncStatus{
-    max-width:100%;
-    font-size:10.5px;
+    max-width:min(100%, 280px);
+    font-size:10px;
+    min-height:23px;
+    padding:4px 8px;
+  }
+}
+
+@media (max-width: 430px){
+  .actionsBlock .actions{
+    gap:5px;
+  }
+  .settingsDropdown{
+    width:148px;
+    right:calc(100% + 6px);
+  }
+  .cloudActionBtn{
+    padding-inline:9px;
+    gap:5px;
+  }
+  .cloudActionLabel{
+    font-size:12px;
+  }
+  .loginActionBtn{
+    padding-inline:8px;
+    min-width:50px;
+  }
+}
+
+/* Mobile header: title on first row, compact controls on the next row. */
+@media (max-width: 760px){
+  .headerTop{
+    flex-wrap:wrap;
+  }
+  .headerTop .headLeft{
+    width:100%;
   }
 }

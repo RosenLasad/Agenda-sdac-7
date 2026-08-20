@@ -184,15 +184,41 @@
 
         <div class="actionsBlock">
           <div class="actions">
-            <button class="btn hidden" id="installBtn" type="button" title="Installa SDAC Agenda">Installa</button>
-            <button class="btn iconBtn" id="btnExport" title="Scarica un file JSON con tutti i dati" aria-label="Esporta JSON"><span class="ico">📤</span></button>
-            <span class="btn fileBtn iconBtn" title="Carica un file JSON esportato in precedenza" aria-label="Importa JSON"><span class="ico">⬆️</span><input id="importFile" type="file" accept="application/json">
-            </span>
-            <button class="btn danger iconBtn" id="btnReset" title="Azzera tutto (fa anche un export)" aria-label="Reset"><span class="ico">♻️</span></button>
-            <button class="btn iconBtn" id="btnCloudRefresh" type="button" title="Scarica subito l\'ultima versione dal cloud" aria-label="Scarica dal cloud"><span class="ico">☁️</span></button>
-            <button class="btn" id="loginBtn">Accesso</button>
+            <button class="btn hidden installActionBtn" id="installBtn" type="button" title="Installa SDAC Agenda">Installa</button>
+
+            <div class="settingsMenuWrap" id="settingsMenuWrap">
+              <button class="btn iconBtn settingsMenuBtn" id="settingsMenuBtn" type="button" title="Impostazioni" aria-label="Apri Impostazioni" aria-haspopup="menu" aria-expanded="false">
+                <span class="ico" aria-hidden="true">⚙️</span>
+              </button>
+              <div class="settingsDropdown" id="settingsMenu" role="menu" aria-label="Impostazioni" hidden>
+                <button class="settingsMenuItem" id="btnExport" type="button" role="menuitem" title="Esporta tutti i dati in un file JSON">
+                  <span class="settingsMenuItemIcon" aria-hidden="true">📤</span>
+                  <span>Esporta</span>
+                </button>
+                <button class="settingsMenuItem" id="btnImportTrigger" type="button" role="menuitem" title="Importa i dati da un file JSON">
+                  <span class="settingsMenuItemIcon" aria-hidden="true">⬆️</span>
+                  <span>Importa</span>
+                </button>
+                <input id="importFile" type="file" accept="application/json" aria-label="Importa JSON" hidden>
+                <button class="settingsMenuItem settingsMenuItem--danger" id="btnReset" type="button" role="menuitem" title="Azzera tutto dopo aver creato un export di sicurezza">
+                  <span class="settingsMenuItemIcon" aria-hidden="true">♻️</span>
+                  <span>Reset</span>
+                </button>
+              </div>
+            </div>
+
+            <button class="btn cloudActionBtn" id="btnCloudRefresh" type="button" title="Controlla e sincronizza il cloud" aria-label="Controlla e sincronizza il cloud">
+              <span class="ico cloudActionIcon" aria-hidden="true">☁️</span>
+              <span class="cloudActionLabel">Cloud</span>
+            </button>
+            <button class="btn loginActionBtn" id="loginBtn">Accesso</button>
           </div>
-          <div class="cloudSyncStatus" id="cloudSyncStatus" role="status" aria-live="polite">☁️ Cloud: non verificato</div>
+
+          <div class="cloudSyncStatus" id="cloudSyncStatus" data-state="idle" role="status" aria-live="polite" title="Cloud non verificato">
+            <span class="cloudStatusIcon" aria-hidden="true">☁️</span>
+            <span class="cloudStatusText">Non verificato</span>
+            <span class="cloudStatusMeta" aria-hidden="true"></span>
+          </div>
         </div>
       </div>
 

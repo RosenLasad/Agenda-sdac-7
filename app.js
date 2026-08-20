@@ -4,6 +4,7 @@
     var START_YEAR = 2026;
     var STORAGE_KEY = "sdac_agenda_2026_v1";
     var THEME_KEY = "sdac_agenda_theme";
+    var REMOTE_BASE_KEY_PREFIX = "sdac_agenda_cloud_base_v1_";
     var THEME_META_DARK = "#9f1020";
     var THEME_META_LIGHT = "#efe6d7";
 
@@ -329,6 +330,8 @@
     var remoteLastKnownUpdatedAt = null;
     var remoteLastCheckedAt = null;
     var remoteWriteLocked = false;
+    var remoteWriteLockReason = null;
+    var remoteConflictPending = false;
     var REMOTE_SYNC_DEBOUNCE_MS = 1200;
     var REMOTE_SYNC_POLL_MS = 10000;
 
@@ -357,8 +360,62 @@
       }
     }
 
-    function setCloudWriteLock(locked){
+    function formatCloudTime(value){
+      if(!value) return "";
+      var d = value instanceof Date ? value : new Date(value);
+      if(isNaN(d.getTime())) return "";
+      try{
+        return new Intl.DateTimeFormat("it-IT", {
+          hour:"2-digit",
+          minute:"2-digit"
+        }).format(d);
+      }catch(e){
+        return d.toLocaleTimeString([], { hour:"2-digit", minute:"2-digit" });
+      }
+    }
+
+    function getCurrentCloudUserKey(){
+      try{
+        var user = window.netlifyIdentity && window.netlifyIdentity.currentUser && window.netlifyIdentity.currentUser();
+        var raw = user && (user.id || user.sub || user.email) ? (user.id || user.sub || user.email) : "shared";
+        var key = String(raw).toLowerCase().replace(/[^a-z0-9_-]/g, "_").slice(0, 120);
+        return key || "shared";
+      }catch(e){
+        return "shared";
+      }
+    }
+
+    function getRemoteBaseStorageKey(){
+      return REMOTE_BASE_KEY_PREFIX + getCurrentCloudUserKey();
+    }
+
+    function getStoredRemoteBaseUpdatedAt(){
+      try{
+        return localStorage.getItem(getRemoteBaseStorageKey()) || null;
+      }catch(e){
+        return null;
+      }
+    }
+
+    function setStoredRemoteBaseUpdatedAt(value){
+      try{
+        var key = getRemoteBaseStorageKey();
+        if(value) localStorage.setItem(key, String(value));
+        else localStorage.removeItem(key);
+      }catch(e){}
+    }
+
+    function hasStoredLocalState(){
+      try{
+        return !!localStorage.getItem(STORAGE_KEY);
+      }catch(e){
+        return false;
+      }
+    }
+
+    function setCloudWriteLock(locked, reason){
       remoteWriteLocked = !!locked;
+      remoteWriteLockReason = remoteWriteLocked ? (reason || remoteWriteLockReason || "sync") : null;
       try{
         document.body.classList.toggle("cloudSyncLocked", remoteWriteLocked);
       }catch(e){}
@@ -368,37 +425,79 @@
       if(!btnCloudRefresh) return;
       var icon = "\u2601\uFE0F";
       if(kind === "syncing" || kind === "pending" || kind === "locked") icon = "\uD83D\uDD04";
-      if(kind === "ok") icon = "\u2705";
+      if(kind === "ok") icon = "\u2601\uFE0F";
       if(kind === "conflict" || kind === "error") icon = "\u26A0\uFE0F";
       var ico = btnCloudRefresh.querySelector(".ico");
       if(ico) ico.textContent = icon;
       btnCloudRefresh.setAttribute("data-cloud-state", kind || "idle");
-      btnCloudRefresh.title = kind === "ok" ? "Cloud aggiornato: scarica di nuovo l'ultima versione" : "Scarica subito l'ultima versione dal cloud";
+
+      var label = "Controlla e sincronizza il cloud";
+      if(kind === "ok") label = "Cloud aggiornato: controlla di nuovo la sincronizzazione";
+      else if(kind === "syncing" || kind === "locked") label = "Sincronizzazione cloud in corso";
+      else if(kind === "conflict") label = "Conflitto cloud: premi per caricare la versione cloud";
+      else if(kind === "error") label = "Errore cloud: premi per riprovare";
+      btnCloudRefresh.title = label;
+      btnCloudRefresh.setAttribute("aria-label", label);
     }
 
     function setCloudStatus(kind, message){
       kind = kind || "idle";
       if(cloudSyncStatus){
         cloudSyncStatus.setAttribute("data-state", kind);
-        if(message){
-          cloudSyncStatus.textContent = message;
-        }else if(!isLoggedIn()){
-          cloudSyncStatus.textContent = "\u2601\uFE0F Cloud: non attivo";
+
+        var iconEl = cloudSyncStatus.querySelector(".cloudStatusIcon");
+        var textEl = cloudSyncStatus.querySelector(".cloudStatusText");
+        var metaEl = cloudSyncStatus.querySelector(".cloudStatusMeta");
+        var icon = "\u2601\uFE0F";
+        var text = "Non verificato";
+        var meta = "";
+        var detail = message || "";
+
+        if(!isLoggedIn()){
+          icon = "\u2601\uFE0F";
+          text = "Cloud non attivo";
+          detail = message || "Cloud non attivo. Effettua l'accesso per sincronizzare Agenda SDAC.";
         }else if(kind === "ok"){
-          cloudSyncStatus.textContent = "\u2601\uFE0F Cloud aggiornato: " + formatCloudDateTime(remoteLastCheckedAt) + " - Ultima modifica: " + formatCloudDateTime(remoteLastKnownUpdatedAt || (state && state.updatedAt));
+          icon = "\u2705";
+          text = "Aggiornato";
+          meta = formatCloudTime(remoteLastCheckedAt);
+          detail = "Cloud aggiornato. Ultimo controllo: " + formatCloudDateTime(remoteLastCheckedAt) + ". Ultima modifica: " + formatCloudDateTime(remoteLastKnownUpdatedAt || (state && state.updatedAt)) + ".";
         }else if(kind === "syncing"){
-          cloudSyncStatus.textContent = "\uD83D\uDD04 Cloud: aggiornamento in corso...";
+          icon = "\uD83D\uDD04";
+          text = "Sincronizzazione";
+          detail = message || "Sincronizzazione cloud in corso.";
         }else if(kind === "pending"){
-          cloudSyncStatus.textContent = "\u2601\uFE0F Cloud: controllo necessario prima delle modifiche";
+          icon = "\u23F3";
+          text = "Controllo richiesto";
+          detail = message || "Controllo cloud necessario prima delle modifiche.";
         }else if(kind === "locked"){
-          cloudSyncStatus.textContent = "\uD83D\uDD04 Cloud: aggiorno i dati prima di permettere modifiche";
+          icon = "\uD83D\uDD04";
+          text = remoteConflictPending ? "Conflitto da risolvere" : "Verifica cloud";
+          detail = message || (remoteConflictPending ? "Risolvi il conflitto dal pulsante Cloud prima di continuare." : "Verifica cloud in corso prima di permettere modifiche.");
         }else if(kind === "conflict"){
-          cloudSyncStatus.textContent = "\u26A0\uFE0F Cloud: modifiche piu recenti da un altro dispositivo";
+          icon = "\u26A0\uFE0F";
+          text = "Conflitto cloud";
+          detail = message || "Nel cloud ci sono modifiche piu recenti. Premi Cloud per risolvere il conflitto.";
         }else if(kind === "error"){
-          cloudSyncStatus.textContent = "\u26A0\uFE0F Cloud: aggiornamento non riuscito";
+          icon = "\u26A0\uFE0F";
+          text = "Errore cloud";
+          detail = message || "Aggiornamento cloud non riuscito. Premi Cloud per riprovare.";
         }else{
-          cloudSyncStatus.textContent = "\u2601\uFE0F Cloud: non verificato";
+          icon = "\u2601\uFE0F";
+          text = "Non verificato";
+          detail = message || "Cloud non verificato.";
         }
+
+        if(iconEl && textEl && metaEl){
+          iconEl.textContent = icon;
+          textEl.textContent = text;
+          metaEl.textContent = meta ? "\u00B7 " + meta : "";
+          metaEl.hidden = !meta;
+        }else{
+          cloudSyncStatus.textContent = icon + " " + text + (meta ? " \u00B7 " + meta : "");
+        }
+        cloudSyncStatus.title = detail;
+        cloudSyncStatus.setAttribute("aria-label", detail);
       }
       setCloudButtonState(kind);
     }
@@ -463,6 +562,8 @@
       if(!remote || typeof remote !== "object") return false;
       state = normalizeLoadedState(remote);
       remoteLastKnownUpdatedAt = state.updatedAt || remoteLastKnownUpdatedAt;
+      if(state.updatedAt) setStoredRemoteBaseUpdatedAt(state.updatedAt);
+      remoteConflictPending = false;
       try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
       syncNotesUiFromState();
       renderAll();
@@ -470,8 +571,9 @@
       return true;
     }
 
-    async function syncFromCloudOrSeed(forcePull, mandatory){
+    async function syncFromCloudOrSeed(forceRemoteApply, mandatory){
       if(!isLoggedIn()){
+        remoteConflictPending = false;
         setCloudWriteLock(false);
         setCloudStatus("idle", "\u2601\uFE0F Cloud: non attivo");
         return;
@@ -481,13 +583,14 @@
         return;
       }
 
-      if(mandatory) setCloudWriteLock(true);
+      if(mandatory) setCloudWriteLock(true, remoteConflictPending ? "conflict" : "sync");
       remoteSyncInFlight = true;
       setCloudStatus(mandatory ? "locked" : "syncing");
 
       try{
         var envelope = await loadRemoteEnvelope();
         if(envelope && envelope.unauthorized){
+          remoteConflictPending = false;
           setCloudWriteLock(false);
           setCloudStatus("idle", "\u2601\uFE0F Cloud: accesso richiesto");
           return;
@@ -497,29 +600,90 @@
         var remote = envelope ? envelope.data : null;
         var localStamp = getStateUpdatedAt(state);
         var remoteStamp = getStateUpdatedAt(remote);
+        var storedBaseUpdatedAt = getStoredRemoteBaseUpdatedAt();
+        var baseStamp = storedBaseUpdatedAt ? Date.parse(storedBaseUpdatedAt) : NaN;
+        baseStamp = Number.isFinite(baseStamp) ? baseStamp : 0;
+        var localExists = hasStoredLocalState();
 
         if(remote && typeof remote === "object"){
           remoteLastKnownUpdatedAt = remote.updatedAt || null;
-          if(forcePull || remoteStamp > localStamp){
+
+          if(forceRemoteApply){
             applyRemoteState(remote);
+            setCloudWriteLock(false);
+            setCloudStatus("ok");
+            return;
           }
+
+          // Se la copia locale non esiste piu, il cloud e l'unica sorgente
+          // persistita disponibile: ripristinala anche se il token base esiste.
+          if(!localExists){
+            applyRemoteState(remote);
+            setCloudWriteLock(false);
+            setCloudStatus("ok");
+            return;
+          }
+
+          var localChangedSinceBase = !!(baseStamp && localExists && localStamp > baseStamp);
+          var remoteChangedSinceBase = !!(baseStamp && remoteStamp > baseStamp);
+
+          if(localChangedSinceBase && remoteChangedSinceBase && localStamp !== remoteStamp){
+            remoteConflictPending = true;
+            setCloudWriteLock(true, "conflict");
+            setCloudStatus("conflict", "\u26A0\uFE0F Cloud e dispositivo hanno modifiche diverse. Premi il pulsante cloud per caricare la versione cloud prima di continuare.");
+            return;
+          }
+
+          if(baseStamp){
+            if(remoteChangedSinceBase && !localChangedSinceBase){
+              applyRemoteState(remote);
+              setCloudWriteLock(false);
+              setCloudStatus("ok");
+              return;
+            }
+
+            if(localChangedSinceBase && !remoteChangedSinceBase){
+              setCloudStatus("syncing", "\uD83D\uDD04 Cloud: invio delle modifiche locali in corso...");
+              scheduleRemoteSave(true, true, true);
+              return;
+            }
+          }else{
+            // Prima sincronizzazione dopo l'aggiornamento: non sovrascrivere
+            // mai una copia locale piu recente soltanto perche il pull e obbligatorio.
+            if(!localExists || remoteStamp > localStamp){
+              applyRemoteState(remote);
+              setCloudWriteLock(false);
+              setCloudStatus("ok");
+              return;
+            }
+
+            if(localStamp > remoteStamp){
+              setCloudStatus("syncing", "\uD83D\uDD04 Cloud: copia locale piu recente, aggiornamento cloud in corso...");
+              scheduleRemoteSave(true, true, true);
+              return;
+            }
+          }
+
+          if(remote.updatedAt) setStoredRemoteBaseUpdatedAt(remote.updatedAt);
+          remoteConflictPending = false;
           setCloudWriteLock(false);
           setCloudStatus("ok");
           return;
         }
 
         remoteLastKnownUpdatedAt = null;
-        if(hasLocalData(state)){
+        if(localExists || hasLocalData(state)){
           setCloudStatus("syncing", "\uD83D\uDD04 Cloud: primo salvataggio in corso...");
-          scheduleRemoteSave(true, true);
+          scheduleRemoteSave(true, true, true);
         }else{
+          remoteConflictPending = false;
+          setCloudWriteLock(false);
           setCloudStatus("ok");
         }
-        setCloudWriteLock(false);
       }catch(e){
         console.warn("Sync cloud fallita:", e);
         if(mandatory){
-          setCloudWriteLock(true);
+          setCloudWriteLock(true, remoteConflictPending ? "conflict" : "sync");
           setCloudStatus("locked", "\u26A0\uFE0F Cloud non verificato: premi il pulsante cloud prima di modificare.");
         }else{
           setCloudStatus("error");
@@ -529,14 +693,20 @@
       }
     }
 
-    function scheduleRemoteSave(immediate, allowWhileLocked){
+    function scheduleRemoteSave(immediate, allowWhileLocked, unlockAfterSave){
       if(!isLoggedIn()) return;
+      if(remoteConflictPending && !allowWhileLocked){
+        setCloudWriteLock(true, "conflict");
+        setCloudStatus("conflict", "\u26A0\uFE0F Salvataggio bloccato: aggiorna prima la versione cloud dal pulsante cloud.");
+        return;
+      }
       if(remoteWriteLocked && !allowWhileLocked){
         setCloudStatus("locked", "\uD83D\uDD04 Cloud: attendo l'aggiornamento iniziale prima di salvare.");
         return;
       }
       if(remoteSaveTimer) clearTimeout(remoteSaveTimer);
       remoteSaveTimer = setTimeout(function(){
+        remoteSaveTimer = null;
         var payload = normalizeLoadedState(JSON.parse(JSON.stringify(state)));
         payload.updatedAt = new Date().toISOString();
         state.updatedAt = payload.updatedAt;
@@ -546,16 +716,22 @@
           state.updatedAt = savedAt;
           remoteLastKnownUpdatedAt = savedAt;
           remoteLastCheckedAt = new Date().toISOString();
+          remoteConflictPending = false;
+          setStoredRemoteBaseUpdatedAt(savedAt);
           try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
           updateStorageStatus(true);
+          if(unlockAfterSave) setCloudWriteLock(false);
           setCloudStatus("ok");
         }).catch(function(e){
           console.warn("Salvataggio cloud fallito:", e);
           if(e && e.conflict){
             if(e.remoteUpdatedAt) remoteLastKnownUpdatedAt = e.remoteUpdatedAt;
-            setCloudStatus("conflict", "\u26A0\uFE0F Cloud piu recente su un altro dispositivo. Premi il pulsante cloud per aggiornare prima di salvare.");
-            window.alert("Nel cloud ci sono modifiche piu recenti fatte da un altro dispositivo. Aggiorna dal pulsante cloud prima di continuare, cosi eviti di sovrascrivere dati nuovi.");
+            remoteConflictPending = true;
+            setCloudWriteLock(true, "conflict");
+            setCloudStatus("conflict", "\u26A0\uFE0F Cloud piu recente su un altro dispositivo. Salvataggi bloccati: premi il pulsante cloud per aggiornare prima di continuare.");
+            window.alert("Nel cloud ci sono modifiche piu recenti fatte da un altro dispositivo. I salvataggi cloud sono stati bloccati. Premi il pulsante cloud per caricare la versione piu recente prima di continuare.");
           }else{
+            if(unlockAfterSave) setCloudWriteLock(false);
             setCloudStatus("error");
           }
         });
@@ -589,18 +765,29 @@
 
     function beginMandatoryCloudRefresh(){
       if(!isLoggedIn()){
+        remoteConflictPending = false;
         setCloudWriteLock(false);
         setCloudStatus("idle", "\u2601\uFE0F Cloud: non attivo");
         return;
       }
-      setCloudWriteLock(true);
+      setCloudWriteLock(true, "sync");
       setCloudStatus("locked");
-      scheduleRemoteRefresh(true, true);
+      // Il controllo iniziale confronta le versioni: non forza piu il cloud
+      // sopra una copia locale eventualmente piu recente.
+      scheduleRemoteRefresh(false, true);
     }
 
     function handleManualCloudRefresh(){
       if(!isLoggedIn()){
         alert("Accedi prima al cloud SDAC.");
+        return;
+      }
+      if(remoteConflictPending){
+        setCloudWriteLock(true, "conflict");
+        setCloudStatus("locked", "\uD83D\uDD04 Cloud: risoluzione conflitto in corso...");
+        // Dopo un conflitto esplicito il pulsante Cloud fa da risoluzione
+        // intenzionale: carica la versione remota e sblocca i salvataggi.
+        scheduleRemoteRefresh(true, true);
         return;
       }
       beginMandatoryCloudRefresh();
@@ -674,7 +861,11 @@
 
     var agendaWeekCount = $("#agendaWeekCount");
     var agendaWeekList = $("#agendaWeekList");
+    var settingsMenuWrap = $("#settingsMenuWrap");
+    var settingsMenuBtn = $("#settingsMenuBtn");
+    var settingsMenu = $("#settingsMenu");
     var btnExport = $("#btnExport");
+    var btnImportTrigger = $("#btnImportTrigger");
     var importFile = $("#importFile");
     var btnReset = $("#btnReset");
     var btnCloudRefresh = $("#btnCloudRefresh");
@@ -1529,8 +1720,13 @@ if(openTodosBtn){
 
     function touchAndSave(){
       if(isLoggedIn() && remoteWriteLocked){
-        setCloudStatus("locked", "\uD83D\uDD04 Cloud: attendo l'aggiornamento iniziale prima di salvare.");
-        window.alert("Agenda SDAC sta aggiornando il cloud. Aspetta che compaia 'Cloud aggiornato', poi modifica di nuovo.");
+        if(remoteConflictPending || remoteWriteLockReason === "conflict"){
+          setCloudStatus("conflict", "\u26A0\uFE0F Salvataggi bloccati: premi il pulsante cloud per risolvere il conflitto.");
+          window.alert("C'e un conflitto con una versione cloud piu recente. Premi il pulsante cloud per aggiornarla prima di continuare.");
+        }else{
+          setCloudStatus("locked", "\uD83D\uDD04 Cloud: attendo l'aggiornamento iniziale prima di salvare.");
+          window.alert("Agenda SDAC sta aggiornando il cloud. Aspetta che compaia 'Cloud aggiornato', poi modifica di nuovo.");
+        }
         return;
       }
       state.updatedAt = new Date().toISOString();
@@ -2251,6 +2447,27 @@ todoActiveList.appendChild(item);
       }
     }
 
+    // Menu Impostazioni
+    function isSettingsMenuOpen(){
+      return !!(settingsMenu && !settingsMenu.hidden);
+    }
+
+    function setSettingsMenuOpen(open, focusFirst){
+      if(!settingsMenu || !settingsMenuBtn) return;
+      var shouldOpen = !!open;
+      settingsMenu.hidden = !shouldOpen;
+      settingsMenuBtn.setAttribute("aria-expanded", shouldOpen ? "true" : "false");
+      settingsMenuBtn.setAttribute("aria-label", shouldOpen ? "Chiudi Impostazioni" : "Apri Impostazioni");
+      if(shouldOpen && focusFirst){
+        var firstItem = settingsMenu.querySelector(".settingsMenuItem");
+        if(firstItem) firstItem.focus();
+      }
+    }
+
+    function toggleSettingsMenu(){
+      setSettingsMenuOpen(!isSettingsMenuOpen(), false);
+    }
+
     // Export / Import / Reset
     function exportJSON(){
       try{
@@ -2298,8 +2515,17 @@ todoActiveList.appendChild(item);
     }
 
     function resetAll(){
+      if(isLoggedIn() && remoteWriteLocked){
+        if(remoteConflictPending || remoteWriteLockReason === "conflict"){
+          window.alert("Prima di azzerare l'agenda, risolvi il conflitto dal pulsante cloud. In questo modo il Reset non rischia di sovrascrivere modifiche piu recenti.");
+        }else{
+          window.alert("Il cloud e in aggiornamento. Aspetta che compaia 'Cloud aggiornato' prima di usare Reset.");
+        }
+        return;
+      }
       exportJSON();
       state = defaultState();
+      state.updatedAt = new Date().toISOString();
       try{ localStorage.setItem(STORAGE_KEY, JSON.stringify(state)); }catch(e){}
       syncNotesUiFromState();
       var now = new Date();
@@ -2307,6 +2533,9 @@ todoActiveList.appendChild(item);
       currentMonth = now.getMonth();
       renderAll();
       updateStorageStatus(true);
+      // Il Reset e una modifica reale dello stato: se il cloud e attivo,
+      // propagala subito invece di lasciare online la vecchia agenda.
+      if(isLoggedIn()) scheduleRemoteSave(true);
     }
 
     function renderAll(){
@@ -2358,6 +2587,11 @@ todoActiveList.appendChild(item);
     btnCloseDay.addEventListener("click", closeDay);
     document.addEventListener("keydown", function(ev){
       if(ev.key !== "Escape") return;
+      if(isSettingsMenuOpen()){
+        setSettingsMenuOpen(false);
+        if(settingsMenuBtn) settingsMenuBtn.focus();
+        return;
+      }
       if(window.AgendaAccount && window.AgendaAccount.isOpen && window.AgendaAccount.isOpen()) return;
       if(contactOverlay && contactOverlay.style.display === "flex") closeContactModal();
       else closeDay();
@@ -2367,9 +2601,36 @@ todoActiveList.appendChild(item);
     if(btnCancelEventEdit) btnCancelEventEdit.addEventListener("click", cancelEventEdit);
     btnPrintDay.addEventListener("click", printDay);
 
-    btnExport.addEventListener("click", exportJSON);
-    importFile.addEventListener("change", importJSON);
-    btnReset.addEventListener("click", resetAll);
+    if(settingsMenuBtn){
+      settingsMenuBtn.addEventListener("click", function(ev){
+        ev.stopPropagation();
+        toggleSettingsMenu();
+      });
+    }
+    if(settingsMenuWrap){
+      settingsMenuWrap.addEventListener("click", function(ev){ ev.stopPropagation(); });
+    }
+    document.addEventListener("click", function(){
+      if(isSettingsMenuOpen()) setSettingsMenuOpen(false);
+    });
+
+    btnExport.addEventListener("click", function(){
+      setSettingsMenuOpen(false);
+      exportJSON();
+    });
+    if(btnImportTrigger){
+      btnImportTrigger.addEventListener("click", function(){
+        if(importFile) importFile.click();
+      });
+    }
+    importFile.addEventListener("change", function(ev){
+      setSettingsMenuOpen(false);
+      importJSON(ev);
+    });
+    btnReset.addEventListener("click", function(){
+      setSettingsMenuOpen(false);
+      resetAll();
+    });
 
     addTodo.addEventListener("click", addTodoItem);
     todoText.addEventListener("keydown", function(ev){ if(ev.key === "Enter") addTodoItem(); });
@@ -2523,7 +2784,7 @@ if(installBtn){
 if(btnCloudRefresh){
   btnCloudRefresh.addEventListener("click", handleManualCloudRefresh);
 }
-setCloudStatus("idle", "\u2601\uFE0F Cloud: non verificato");
+setCloudStatus("idle");
 
 if(themeToggleBtn){
   themeToggleBtn.addEventListener("click", toggleTheme);
@@ -2557,6 +2818,9 @@ window.AgendaApp = {
       beginMandatoryCloudRefresh();
     }else{
       stopRemotePolling();
+      remoteConflictPending = false;
+      remoteLastKnownUpdatedAt = null;
+      remoteLastCheckedAt = null;
       setCloudWriteLock(false);
       setCloudStatus("idle", "\u2601\uFE0F Cloud: non attivo");
     }
@@ -2568,6 +2832,11 @@ window.AgendaApp = {
   },
   onIdentityLogout: function(){
     stopRemotePolling();
+    if(remoteSaveTimer){ clearTimeout(remoteSaveTimer); remoteSaveTimer = null; }
+    if(remotePullTimer){ clearTimeout(remotePullTimer); remotePullTimer = null; }
+    remoteConflictPending = false;
+    remoteLastKnownUpdatedAt = null;
+    remoteLastCheckedAt = null;
     setCloudWriteLock(false);
     switchStateForCurrentSession();
     setCloudStatus("idle", "\u2601\uFE0F Cloud: non attivo");
