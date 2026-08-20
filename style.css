@@ -3473,12 +3473,14 @@ body.cloudSyncLocked #view-today{
 }
 
 .cloudActionBtn{
+  width:40px;
+  min-width:40px;
   min-height:40px;
-  padding:8px 12px;
+  padding:0;
   display:inline-flex;
   align-items:center;
   justify-content:center;
-  gap:7px;
+  gap:0;
   border-color:rgba(122,162,255,.34);
   background:linear-gradient(180deg, rgba(49,61,83,.78), rgba(29,35,49,.86));
   box-shadow:inset 0 1px 0 rgba(255,255,255,.06), 0 6px 18px rgba(0,0,0,.12);
@@ -3495,11 +3497,6 @@ body.cloudSyncLocked #view-today{
   text-align:center;
   font-size:15px;
   line-height:1;
-}
-
-.cloudActionLabel{
-  font-weight:700;
-  letter-spacing:.015em;
 }
 
 .cloudActionBtn[data-cloud-state="ok"]{
@@ -3667,7 +3664,10 @@ body.cloudSyncLocked #accountOverlay{
     height:37px;
   }
   .cloudActionBtn{
-    padding-inline:10px;
+    width:37px;
+    min-width:37px;
+    height:37px;
+    padding:0;
   }
   .cloudSyncStatus{
     max-width:min(100%, 280px);
@@ -3686,15 +3686,28 @@ body.cloudSyncLocked #accountOverlay{
     right:calc(100% + 6px);
   }
   .cloudActionBtn{
-    padding-inline:9px;
-    gap:5px;
-  }
-  .cloudActionLabel{
-    font-size:12px;
+    padding:0;
+    gap:0;
   }
   .loginActionBtn{
     padding-inline:8px;
     min-width:50px;
+  }
+}
+
+/* Portrait phones: keep the Cloud status to icon + time only. */
+@media (max-width: 760px) and (orientation: portrait){
+  .cloudSyncStatus .cloudStatusText{
+    display:none;
+  }
+  .cloudSyncStatus{
+    min-width:0;
+    width:auto;
+    padding-inline:8px;
+    gap:4px;
+  }
+  .cloudSyncStatus .cloudStatusMeta{
+    opacity:.86;
   }
 }
 

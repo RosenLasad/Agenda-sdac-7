@@ -450,7 +450,8 @@
         var metaEl = cloudSyncStatus.querySelector(".cloudStatusMeta");
         var icon = "\u2601\uFE0F";
         var text = "Non verificato";
-        var meta = "";
+        var statusMoment = Date.now();
+        var meta = formatCloudTime(statusMoment);
         var detail = message || "";
 
         if(!isLoggedIn()){
@@ -460,7 +461,7 @@
         }else if(kind === "ok"){
           icon = "\u2705";
           text = "Aggiornato";
-          meta = formatCloudTime(remoteLastCheckedAt);
+          meta = formatCloudTime(remoteLastCheckedAt || statusMoment);
           detail = "Cloud aggiornato. Ultimo controllo: " + formatCloudDateTime(remoteLastCheckedAt) + ". Ultima modifica: " + formatCloudDateTime(remoteLastKnownUpdatedAt || (state && state.updatedAt)) + ".";
         }else if(kind === "syncing"){
           icon = "\uD83D\uDD04";
