@@ -292,6 +292,29 @@
             </span>
             <span class="tabText">Oggi</span>
           </div>
+          <div class="tab bookmarkTab bookmarkTab--courses schoolRoleTab" data-view="courses" role="button" tabindex="0" aria-label="Corsi" title="Corsi">
+            <span class="tabPin" aria-hidden="true"></span>
+            <span class="tabIcon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <path d="M3 9.2 12 4l9 5.2-9 5.2L3 9.2Z"></path>
+                <path d="M6.5 11.2V16c2.9 2.2 8.1 2.2 11 0v-4.8"></path>
+                <path d="M21 9.3v5.4"></path>
+              </svg>
+            </span>
+            <span class="tabText">Corsi</span>
+          </div>
+          <div class="tab bookmarkTab bookmarkTab--students schoolRoleTab" data-view="students" role="button" tabindex="0" aria-label="Studenti" title="Studenti">
+            <span class="tabPin" aria-hidden="true"></span>
+            <span class="tabIcon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <circle cx="9" cy="8" r="3"></circle>
+                <path d="M3.8 18.5c.6-3.2 2.5-5 5.2-5s4.6 1.8 5.2 5"></path>
+                <circle cx="17" cy="9" r="2.2"></circle>
+                <path d="M15.5 14.2c2.8-.5 4.8 1.1 5.2 4.3"></path>
+              </svg>
+            </span>
+            <span class="tabText">Studenti</span>
+          </div>
         </div>
       </div>
     </header>
@@ -548,6 +571,167 @@
       </div>
     </section>
 
+    <!-- Courses view -->
+    <section id="view-courses" class="hidden schoolView">
+      <div class="schoolStack">
+        <div class="card schoolHeroCard">
+          <div class="cardBody schoolHeroBody">
+            <div>
+              <div class="schoolEyebrow">Anno accademico</div>
+              <h2 class="schoolHeroTitle">Corsi SDAC <span id="coursesAcademicYear">2026/2027</span></h2>
+              <div class="hint" id="coursesRoleHint">Seleziona un corso per aprire registro, iscritti e lezioni.</div>
+            </div>
+            <div class="schoolHeroStats">
+              <div class="schoolStat"><strong id="coursesVisibleCount">0</strong><span>Corsi</span></div>
+              <div class="schoolStat"><strong id="coursesStudentCount">0</strong><span>Iscritti</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="schoolCourseGrid" id="courseGrid"></div>
+
+        <div class="card schoolCourseDetail hidden" id="courseDetailCard">
+          <div class="cardHeader schoolCourseDetailHeader">
+            <div>
+              <div class="schoolEyebrow" id="courseDetailEyebrow">Corso</div>
+              <h2 id="courseDetailTitle">—</h2>
+              <div class="hint" id="courseDetailMeta">—</div>
+            </div>
+            <button class="btn" id="closeCourseDetailBtn" type="button">Chiudi corso</button>
+          </div>
+          <div class="cardBody">
+            <div class="schoolCoursePanels">
+              <div class="card schoolInnerCard" id="courseSettingsCard">
+                <div class="cardHeader"><h2>Configurazione corso</h2></div>
+                <div class="cardBody">
+                  <div class="row">
+                    <div class="field">
+                      <label>Docente</label>
+                      <input id="courseTeacherName" type="text" placeholder="Nome docente">
+                    </div>
+                    <div class="field">
+                      <label>Email account Docente/i</label>
+                      <input id="courseTeacherEmail" type="text" inputmode="email" placeholder="docente1@email.it, docente2@email.it">
+                    </div>
+                  </div>
+                  <div class="row">
+                    <div class="field">
+                      <label>Giorno</label>
+                      <select id="courseWeekday">
+                        <option value="1">Lunedì</option><option value="2">Martedì</option><option value="3">Mercoledì</option><option value="4">Giovedì</option><option value="5">Venerdì</option><option value="6">Sabato</option><option value="0">Domenica</option>
+                      </select>
+                    </div>
+                    <div class="field"><label>Ora inizio</label><input id="courseStartTime" type="time"></div>
+                    <div class="field"><label>Ora fine</label><input id="courseEndTime" type="time"></div>
+                    <div class="field"><label>Prima lezione</label><input id="courseFirstDate" type="date"></div>
+                    <div class="field"><label>Numero lezioni</label><input id="courseLessonTarget" type="number" min="0" step="1" placeholder="Es: 10"></div>
+                  </div>
+                  <button class="btn primary" id="saveCourseSettingsBtn" type="button">Salva configurazione</button>
+                  <div class="hint" style="margin-top:8px">Le email docente determinano quali corsi vede ciascun account con ruolo Docente. Separale con una virgola se il corso ha più docenti.</div>
+                </div>
+              </div>
+
+              <div class="card schoolInnerCard">
+                <div class="cardHeader"><h2>Iscritti</h2><span class="hint" id="courseRosterCount">0 studenti</span></div>
+                <div class="cardBody"><div class="schoolRoster" id="courseRoster"></div></div>
+              </div>
+            </div>
+
+            <div class="card schoolInnerCard schoolLessonComposer" id="lessonComposerCard">
+              <div class="cardHeader"><h2>Nuova lezione / registro</h2></div>
+              <div class="cardBody">
+                <input id="lessonEditingId" type="hidden">
+                <div class="row">
+                  <div class="field"><label>Data</label><input id="lessonDate" type="date"></div>
+                  <div class="field"><label>Inizio</label><input id="lessonStartTime" type="time"></div>
+                  <div class="field"><label>Fine</label><input id="lessonEndTime" type="time"></div>
+                </div>
+                <div class="field"><label>Argomenti svolti</label><input id="lessonTopic" type="text" placeholder="Es: Campi, piani e movimenti di macchina"></div>
+                <div class="field"><label>Note della lezione</label><textarea id="lessonNotes" placeholder="Esercitazioni, materiali, comunicazioni agli studenti..."></textarea></div>
+                <div class="schoolAttendanceBox">
+                  <div class="schoolAttendanceHead">
+                    <strong>Presenze</strong>
+                    <button class="smallBtn" id="markAllPresentBtn" type="button">Segna tutti presenti</button>
+                  </div>
+                  <div class="schoolAttendanceEditor" id="lessonAttendanceEditor"></div>
+                </div>
+                <div class="schoolFormActions">
+                  <button class="btn primary" id="saveLessonBtn" type="button">Salva lezione</button>
+                  <button class="btn hidden" id="cancelLessonEditBtn" type="button">Annulla modifica</button>
+                </div>
+              </div>
+            </div>
+
+            <div class="schoolSectionHead">
+              <div><div class="schoolEyebrow">Registro</div><h2>Lezioni</h2></div>
+              <div class="hint" id="courseLessonCount">Nessuna lezione</div>
+            </div>
+            <div class="schoolLessonList" id="courseLessonList"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Students view -->
+    <section id="view-students" class="hidden schoolView">
+      <div class="schoolStack">
+        <div class="card schoolHeroCard">
+          <div class="cardBody schoolHeroBody">
+            <div>
+              <div class="schoolEyebrow">Anno accademico</div>
+              <h2 class="schoolHeroTitle">Studenti <span id="studentsAcademicYear">2026/2027</span></h2>
+              <div class="hint">Anagrafica e iscrizioni. La parte economica è già prevista nei dati ma verrà sviluppata più avanti.</div>
+            </div>
+            <button class="btn primary" id="addStudentBtn" type="button">+ Nuovo studente</button>
+          </div>
+        </div>
+
+        <div class="card schoolFiltersCard">
+          <div class="cardBody schoolFilterRow">
+            <div class="field"><label>Cerca</label><input id="studentSearch" type="search" placeholder="Nome, email, telefono..."></div>
+            <div class="field"><label>Corso</label><select id="studentCourseFilter"><option value="all">Tutti i corsi</option></select></div>
+          </div>
+        </div>
+
+        <div class="schoolSectionHead">
+          <div><div class="schoolEyebrow">Anagrafica</div><h2>Elenco studenti</h2></div>
+          <div class="hint" id="studentListMeta">Nessuno studente</div>
+        </div>
+        <div class="schoolStudentList" id="studentList"></div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Student modal -->
+  <div class="overlay" id="studentOverlay" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal schoolStudentModal">
+      <div class="modalHeader">
+        <h3 id="studentModalTitle">Nuovo studente</h3>
+        <div style="display:flex; gap:8px; flex-wrap:wrap;">
+          <button class="btn primary" id="saveStudentBtn" type="button">Salva</button>
+          <button class="btn danger hidden" id="deleteStudentBtn" type="button">Elimina</button>
+          <button class="btn" id="closeStudentBtn" type="button">Chiudi</button>
+        </div>
+      </div>
+      <div class="modalBody schoolStudentModalBody">
+        <input id="studentEditingId" type="hidden">
+        <div class="row">
+          <div class="field"><label>Nome</label><input id="studentFirstName" type="text" autocomplete="given-name"></div>
+          <div class="field"><label>Cognome</label><input id="studentLastName" type="text" autocomplete="family-name"></div>
+        </div>
+        <div class="row">
+          <div class="field"><label>Email</label><input id="studentEmail" type="email" autocomplete="email"></div>
+          <div class="field"><label>Telefono</label><input id="studentPhone" type="tel" autocomplete="tel"></div>
+        </div>
+        <div class="field">
+          <label>Corsi frequentati</label>
+          <div class="schoolCourseChecks" id="studentCourseChecks"></div>
+        </div>
+        <div class="field"><label>Note</label><textarea id="studentNotes" placeholder="Informazioni utili sull'iscrizione o comunicazioni interne..."></textarea></div>
+        <div class="schoolAttendanceSummary" id="studentAttendanceSummary"></div>
+      </div>
+    </div>
   </div>
 
   <!-- Day modal -->

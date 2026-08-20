@@ -275,12 +275,179 @@
       };
     }
 
+
+
+    var ACADEMIC_YEAR = "2026/2027";
+    var DEFAULT_COURSE_DEFS = [
+      { id:"regia", name:"Regia", icon:"🎬", weekday:4, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-22" },
+      { id:"sceneggiatura", name:"Sceneggiatura", icon:"✍️", weekday:2, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-20" },
+      { id:"operatore-dop", name:"Operatore + D.O.P.", icon:"📷", weekday:1, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-19" },
+      { id:"montaggio", name:"Montaggio", icon:"🖥️", weekday:3, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-21" },
+      { id:"colonne-sonore", name:"Colonne sonore", icon:"🎼", weekday:5, startTime:"15:00", endTime:"17:00", firstDate:"2026-10-23" },
+      { id:"tecnico-suono", name:"Tecnico del suono", icon:"🎚️", weekday:5, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-23" }
+    ];
+
+    function normalizeEmail(value){ return String(value || "").trim().toLowerCase(); }
+
+    function defaultAcademyState(){
+      return {
+        activeYear: ACADEMIC_YEAR,
+        years: {
+          "2026/2027": {
+            courses: DEFAULT_COURSE_DEFS.map(function(def){
+              return {
+                id:def.id,
+                name:def.name,
+                icon:def.icon,
+                weekday:def.weekday,
+                startTime:def.startTime,
+                endTime:def.endTime,
+                firstDate:def.firstDate,
+                lessonTarget:null,
+                teacherName:"",
+                teacherEmails:[],
+                lessons:[]
+              };
+            }),
+            students:[]
+          }
+        }
+      };
+    }
+
+    function normalizeAttendance(raw){
+      var src = raw && typeof raw === "object" ? raw : {};
+      var out = {};
+      Object.keys(src).forEach(function(studentId){
+        var value = String(src[studentId] || "present").toLowerCase();
+        out[studentId] = value === "absent" || value === "late" || value === "unmarked" ? value : "present";
+      });
+      return out;
+    }
+
+    function normalizeLesson(raw){
+      var l = raw && typeof raw === "object" ? raw : {};
+      return {
+        id:l.id || uid(),
+        date:String(l.date || "").slice(0,10),
+        startTime:String(l.startTime || ""),
+        endTime:String(l.endTime || ""),
+        topic:String(l.topic || "").trim(),
+        notes:String(l.notes || "").trim(),
+        attendance:normalizeAttendance(l.attendance),
+        createdAt:l.createdAt || new Date().toISOString(),
+        updatedAt:l.updatedAt || l.createdAt || new Date().toISOString()
+      };
+    }
+
+    function normalizeCourse(raw, fallback){
+      var c = raw && typeof raw === "object" ? raw : {};
+      var f = fallback || {};
+      var emails = Array.isArray(c.teacherEmails) ? c.teacherEmails : (c.teacherEmail ? [c.teacherEmail] : []);
+      return {
+        id:String(c.id || f.id || uid()),
+        name:String(c.name || f.name || "Corso").trim(),
+        icon:String(c.icon || f.icon || "🎓"),
+        weekday:Number.isFinite(Number(c.weekday)) ? Number(c.weekday) : Number(f.weekday || 1),
+        startTime:String(c.startTime || f.startTime || "17:00"),
+        endTime:String(c.endTime || f.endTime || "19:00"),
+        firstDate:String(c.firstDate || f.firstDate || "").slice(0,10),
+        lessonTarget:c.lessonTarget === null || c.lessonTarget === "" || typeof c.lessonTarget === "undefined" ? null : Math.max(0, Number(c.lessonTarget) || 0),
+        teacherName:String(c.teacherName || "").trim(),
+        teacherEmails:emails.map(normalizeEmail).filter(Boolean).filter(function(v,i,a){ return a.indexOf(v) === i; }),
+        lessons:Array.isArray(c.lessons) ? c.lessons.map(normalizeLesson) : []
+      };
+    }
+
+    function normalizeStudent(raw){
+      var st = raw && typeof raw === "object" ? raw : {};
+      return {
+        id:st.id || uid(),
+        firstName:String(st.firstName || "").trim(),
+        lastName:String(st.lastName || "").trim(),
+        email:String(st.email || "").trim(),
+        phone:String(st.phone || "").trim(),
+        notes:String(st.notes || "").trim(),
+        courseIds:Array.isArray(st.courseIds) ? st.courseIds.map(String) : [],
+        finance:st.finance && typeof st.finance === "object" ? {
+          totalFee:Number(st.finance.totalFee || 0),
+          paid:Number(st.finance.paid || 0),
+          installments:Array.isArray(st.finance.installments) ? st.finance.installments : [],
+          notes:String(st.finance.notes || "")
+        } : { totalFee:0, paid:0, installments:[], notes:"" },
+        createdAt:st.createdAt || new Date().toISOString(),
+        updatedAt:st.updatedAt || st.createdAt || new Date().toISOString()
+      };
+    }
+
+    function normalizeAcademyState(raw){
+      var base = defaultAcademyState();
+      var src = raw && typeof raw === "object" ? raw : {};
+      var activeYear = String(src.activeYear || ACADEMIC_YEAR);
+      var sourceYears = src.years && typeof src.years === "object" ? src.years : {};
+      var years = {};
+      var allYears = Object.keys(sourceYears);
+      if(allYears.indexOf(ACADEMIC_YEAR) === -1) allYears.unshift(ACADEMIC_YEAR);
+      allYears.forEach(function(year){
+        var y = sourceYears[year] && typeof sourceYears[year] === "object" ? sourceYears[year] : {};
+        var hasExplicitCourses = Array.isArray(y.courses);
+        var coursesRaw = hasExplicitCourses ? y.courses : [];
+        if(year === ACADEMIC_YEAR){
+          var byId = {};
+          coursesRaw.forEach(function(c){ if(c && c.id) byId[String(c.id)] = c; });
+          var normalizedCourses = hasExplicitCourses
+            ? coursesRaw.map(function(c){
+                var def = DEFAULT_COURSE_DEFS.find(function(item){ return item.id === String(c && c.id || ""); });
+                return normalizeCourse(c, def);
+              })
+            : DEFAULT_COURSE_DEFS.map(function(def){ return normalizeCourse(null, def); });
+          years[year] = {
+            courses:normalizedCourses,
+            students:Array.isArray(y.students) ? y.students.map(normalizeStudent) : []
+          };
+        }else{
+          years[year] = { courses:coursesRaw.map(function(c){ return normalizeCourse(c); }), students:Array.isArray(y.students) ? y.students.map(normalizeStudent) : [] };
+        }
+      });
+      if(!years[activeYear]) activeYear = ACADEMIC_YEAR;
+      return { activeYear:activeYear, years:years };
+    }
+
+    function getAcademyYear(){
+      if(!state.academy || typeof state.academy !== "object") state.academy = normalizeAcademyState(null);
+      var year = state.academy.activeYear || ACADEMIC_YEAR;
+      if(!state.academy.years[year]) state.academy.years[year] = { courses:[], students:[] };
+      return state.academy.years[year];
+    }
+
+    function getCurrentUserEmail(){
+      var user = getIdentityUser();
+      return normalizeEmail(user && user.email);
+    }
+
+    function projectAcademyForTeacher(sourceAcademy, email){
+      var academy = normalizeAcademyState(sourceAcademy);
+      var userEmail = normalizeEmail(email);
+      var projected = { activeYear:academy.activeYear, years:{} };
+      Object.keys(academy.years).forEach(function(year){
+        var y = academy.years[year];
+        var courses = (y.courses || []).filter(function(course){ return userEmail && (course.teacherEmails || []).map(normalizeEmail).indexOf(userEmail) !== -1; });
+        var ids = courses.map(function(c){ return c.id; });
+        var students = (y.students || []).filter(function(st){ return (st.courseIds || []).some(function(id){ return ids.indexOf(id) !== -1; }); }).map(function(st){
+          return { id:st.id, firstName:st.firstName, lastName:st.lastName, email:"", phone:"", notes:"", courseIds:(st.courseIds || []).filter(function(id){ return ids.indexOf(id) !== -1; }), finance:{ totalFee:0, paid:0, installments:[], notes:"" }, createdAt:st.createdAt, updatedAt:st.updatedAt };
+        });
+        projected.years[year] = { courses:courses, students:students };
+      });
+      return normalizeAcademyState(projected);
+    }
+
     function normalizeLoadedState(obj){
       var next = obj && typeof obj === "object" ? obj : {};
       if(!next.events) next.events = {};
       if(!Array.isArray(next.todos)) next.todos = [];
       next.notes = normalizeNotesState(next.notes);
       if(!Array.isArray(next.contacts)) next.contacts = [];
+      next.academy = normalizeAcademyState(next.academy);
       next.updatedAt = next.updatedAt || new Date().toISOString();
       return next;
     }
@@ -292,7 +459,8 @@
         events:{},
         todos:[],
         notes: normalizeNotesState(null),
-        contacts:[]
+        contacts:[],
+        academy: normalizeAcademyState(null)
       };
     }
 
@@ -320,8 +488,8 @@
 
     function roleCanAccess(role, feature){
       if(role === "admin") return true;
-      if(role === "socio") return feature === "calendar" || feature === "today" || feature === "notebook" || feature === "contacts" || feature === "cloud";
-      if(role === "docente") return feature === "calendar" || feature === "today" || feature === "cloud";
+      if(role === "socio") return feature === "calendar" || feature === "today" || feature === "notebook" || feature === "contacts" || feature === "courses" || feature === "students" || feature === "cloud";
+      if(role === "docente") return feature === "calendar" || feature === "today" || feature === "courses" || feature === "cloud";
       return feature === "calendar" || feature === "today";
     }
 
@@ -345,16 +513,19 @@
       return STORAGE_KEY_PREFIX + getCurrentLocalUserKey();
     }
 
-    function projectStateForRole(source, role){
+    function projectStateForRole(source, role, userEmail){
       var src = normalizeLoadedState(source && typeof source === "object" ? source : defaultState());
       if(role === "admin" || role === "socio") return src;
+      var teacherAcademy = role === "docente" ? projectAcademyForTeacher(src.academy, userEmail || getCurrentUserEmail()) : normalizeAcademyState(null);
+      if(role !== "docente") teacherAcademy.years[teacherAcademy.activeYear] = { courses:[], students:[] };
       return normalizeLoadedState({
         version: src.version || "v1-notes",
         updatedAt: src.updatedAt,
         events: src.events || {},
         todos: [],
         notes: normalizeNotesState(null),
-        contacts: []
+        contacts: [],
+        academy: teacherAcademy
       });
     }
 
@@ -367,7 +538,7 @@
           if(legacyRaw){
             var legacyObj = JSON.parse(legacyRaw);
             if(legacyObj && typeof legacyObj === "object"){
-              var migrated = projectStateForRole(legacyObj, getCurrentAccessRole());
+              var migrated = projectStateForRole(legacyObj, getCurrentAccessRole(), getCurrentUserEmail());
               try{ localStorage.setItem(storageKey, JSON.stringify(migrated)); }catch(e){}
               return migrated;
             }
@@ -376,7 +547,7 @@
         }
         var obj = JSON.parse(raw);
         if(!obj || typeof obj !== "object") return defaultState();
-        return projectStateForRole(obj, getCurrentAccessRole());
+        return projectStateForRole(obj, getCurrentAccessRole(), getCurrentUserEmail());
       }catch(e){
         return defaultState();
       }
@@ -636,6 +807,7 @@
           Object.keys(s.events || {}).length ||
           (s.todos || []).length ||
           (s.contacts || []).length ||
+          (s.academy && s.academy.years && Object.keys(s.academy.years).some(function(year){ var y=s.academy.years[year]||{}; return (y.students||[]).length || (y.courses||[]).some(function(c){ return (c.lessons||[]).length || (c.teacherEmails||[]).length || c.teacherName || c.lessonTarget; }); })) ||
           (notesState.items || []).length ||
           String(notesState.draftTitle || "").trim().length ||
           String(notesState.draftBody || "").trim().length
@@ -957,6 +1129,8 @@
     var viewNotebook = $("#view-notebook");
     var viewContacts = $("#view-contacts");
     var viewToday = $("#view-today");
+    var viewCourses = $("#view-courses");
+    var viewStudents = $("#view-students");
 
     var calListGrid = $("#calListGrid");
 
@@ -1006,6 +1180,61 @@
     var notesCount = $("#notesCount");
     var notesEditorStatus = $("#notesEditorStatus");
 
+
+
+    var courseGrid = $("#courseGrid");
+    var courseDetailCard = $("#courseDetailCard");
+    var courseDetailEyebrow = $("#courseDetailEyebrow");
+    var courseDetailTitle = $("#courseDetailTitle");
+    var courseDetailMeta = $("#courseDetailMeta");
+    var closeCourseDetailBtn = $("#closeCourseDetailBtn");
+    var coursesVisibleCount = $("#coursesVisibleCount");
+    var coursesStudentCount = $("#coursesStudentCount");
+    var coursesRoleHint = $("#coursesRoleHint");
+    var courseSettingsCard = $("#courseSettingsCard");
+    var courseTeacherName = $("#courseTeacherName");
+    var courseTeacherEmail = $("#courseTeacherEmail");
+    var courseWeekday = $("#courseWeekday");
+    var courseStartTime = $("#courseStartTime");
+    var courseEndTime = $("#courseEndTime");
+    var courseFirstDate = $("#courseFirstDate");
+    var courseLessonTarget = $("#courseLessonTarget");
+    var saveCourseSettingsBtn = $("#saveCourseSettingsBtn");
+    var courseRoster = $("#courseRoster");
+    var courseRosterCount = $("#courseRosterCount");
+    var lessonEditingId = $("#lessonEditingId");
+    var lessonDate = $("#lessonDate");
+    var lessonStartTime = $("#lessonStartTime");
+    var lessonEndTime = $("#lessonEndTime");
+    var lessonTopic = $("#lessonTopic");
+    var lessonNotes = $("#lessonNotes");
+    var lessonAttendanceEditor = $("#lessonAttendanceEditor");
+    var markAllPresentBtn = $("#markAllPresentBtn");
+    var saveLessonBtn = $("#saveLessonBtn");
+    var cancelLessonEditBtn = $("#cancelLessonEditBtn");
+    var courseLessonList = $("#courseLessonList");
+    var courseLessonCount = $("#courseLessonCount");
+
+    var addStudentBtn = $("#addStudentBtn");
+    var studentSearch = $("#studentSearch");
+    var studentCourseFilter = $("#studentCourseFilter");
+    var studentList = $("#studentList");
+    var studentListMeta = $("#studentListMeta");
+    var studentOverlay = $("#studentOverlay");
+    var studentModalTitle = $("#studentModalTitle");
+    var studentEditingId = $("#studentEditingId");
+    var studentFirstName = $("#studentFirstName");
+    var studentLastName = $("#studentLastName");
+    var studentEmail = $("#studentEmail");
+    var studentPhone = $("#studentPhone");
+    var studentCourseChecks = $("#studentCourseChecks");
+    var studentNotes = $("#studentNotes");
+    var studentAttendanceSummary = $("#studentAttendanceSummary");
+    var saveStudentBtn = $("#saveStudentBtn");
+    var deleteStudentBtn = $("#deleteStudentBtn");
+    var closeStudentBtn = $("#closeStudentBtn");
+    var selectedCourseId = null;
+
     var todayPrevBtn = $("#todayPrevBtn");
     var todayNextBtn = $("#todayNextBtn");
 
@@ -1022,7 +1251,7 @@
     }
 
     function roleRestrictionMessage(feature){
-      var label = feature === "notebook" ? "Taccuino" : feature === "contacts" ? "Rubrica" : feature === "settings" ? "Impostazioni" : "Questa area";
+      var label = feature === "notebook" ? "Taccuino" : feature === "contacts" ? "Rubrica" : feature === "courses" ? "Corsi" : feature === "students" ? "Studenti" : feature === "settings" ? "Impostazioni" : "Questa area";
       if(currentAccessRole === "guest") return label + " richiede un account SDAC autorizzato.";
       if(currentAccessRole === "none") return label + " non è disponibile finché all'account non viene assegnato un ruolo SDAC.";
       return label + " non è disponibile per il ruolo " + roleDisplayName(currentAccessRole) + ".";
@@ -1044,11 +1273,15 @@
       var notebookAllowed = canCurrentRoleAccess("notebook");
       var contactsAllowed = canCurrentRoleAccess("contacts");
       var settingsAllowed = canCurrentRoleAccess("settings");
+      var coursesAllowed = canCurrentRoleAccess("courses");
+      var studentsAllowed = canCurrentRoleAccess("students");
 
       tabs.forEach(function(tab){
         var view = tab.getAttribute("data-view");
         if(view === "notebook") setRoleLockedElement(tab, !notebookAllowed, roleRestrictionMessage("notebook"));
         else if(view === "contacts") setRoleLockedElement(tab, !contactsAllowed, roleRestrictionMessage("contacts"));
+        else if(view === "courses") setRoleLockedElement(tab, !coursesAllowed, roleRestrictionMessage("courses"));
+        else if(view === "students") setRoleLockedElement(tab, !studentsAllowed, roleRestrictionMessage("students"));
         else setRoleLockedElement(tab, false, "");
       });
 
@@ -1058,9 +1291,11 @@
       var todoPanelCard = todoMiniPanel && todoMiniPanel.closest ? todoMiniPanel.closest(".todoPanelCard") : null;
       if(todoPanelCard) todoPanelCard.classList.toggle("roleFeatureHidden", !notebookAllowed);
 
-      if((currentView === "notebook" && !notebookAllowed) || (currentView === "contacts" && !contactsAllowed)){
+      if((currentView === "notebook" && !notebookAllowed) || (currentView === "contacts" && !contactsAllowed) || (currentView === "courses" && !coursesAllowed) || (currentView === "students" && !studentsAllowed)){
         setView("calendar", true);
       }
+      if(currentView === "courses") renderCourses();
+      if(currentView === "students") renderStudents();
     }
 
     function getNotesState(){
@@ -1553,7 +1788,7 @@ wireCollapse(notesListCard);
 wireCollapse(notesEditorCard);
 resetEventForm();
     function setView(view, silent){
-      if((view === "notebook" && !canCurrentRoleAccess("notebook")) || (view === "contacts" && !canCurrentRoleAccess("contacts"))){
+      if((view === "notebook" && !canCurrentRoleAccess("notebook")) || (view === "contacts" && !canCurrentRoleAccess("contacts")) || (view === "courses" && !canCurrentRoleAccess("courses")) || (view === "students" && !canCurrentRoleAccess("students"))){
         if(!silent) window.alert(roleRestrictionMessage(view));
         return false;
       }
@@ -1563,6 +1798,8 @@ resetEventForm();
       if(viewNotebook) viewNotebook.classList.toggle("hidden", view !== "notebook");
       if(viewContacts) viewContacts.classList.toggle("hidden", view !== "contacts");
       if(viewToday) viewToday.classList.toggle("hidden", view !== "today");
+      if(viewCourses) viewCourses.classList.toggle("hidden", view !== "courses");
+      if(viewStudents) viewStudents.classList.toggle("hidden", view !== "students");
 
       if(view === "calendar") renderSummary();
       if(view === "notebook"){
@@ -1571,6 +1808,8 @@ resetEventForm();
       }
       if(view === "contacts") renderContacts();
       if(view === "today") renderTodayPanel();
+      if(view === "courses") renderCourses();
+      if(view === "students") renderStudents();
       return true;
     }
 
@@ -2732,6 +2971,260 @@ todoActiveList.appendChild(item);
       if(isLoggedIn()) scheduleRemoteSave(true);
     }
 
+
+
+    function weekdayLabel(value){
+      return ["Domenica","Lunedì","Martedì","Mercoledì","Giovedì","Venerdì","Sabato"][Number(value)] || "—";
+    }
+
+    function formatSchoolDate(iso){
+      if(!iso) return "—";
+      var d = new Date(iso + "T12:00:00");
+      if(isNaN(d.getTime())) return iso;
+      try{ return new Intl.DateTimeFormat("it-IT", { day:"2-digit", month:"short", year:"numeric" }).format(d); }catch(e){ return iso; }
+    }
+
+    function fullStudentName(student){
+      return [student.firstName, student.lastName].filter(Boolean).join(" ").trim() || "Studente senza nome";
+    }
+
+    function getCourseById(id){ return (getAcademyYear().courses || []).find(function(c){ return c.id === id; }) || null; }
+    function getStudentById(id){ return (getAcademyYear().students || []).find(function(st){ return st.id === id; }) || null; }
+    function enrolledStudents(courseId){ return (getAcademyYear().students || []).filter(function(st){ return (st.courseIds || []).indexOf(courseId) !== -1; }).sort(function(a,b){ return fullStudentName(a).localeCompare(fullStudentName(b), "it"); }); }
+    function canEditCourseRegister(course){
+      if(currentAccessRole === "admin" || currentAccessRole === "socio") return true;
+      if(currentAccessRole !== "docente" || !course) return false;
+      return (course.teacherEmails || []).map(normalizeEmail).indexOf(getCurrentUserEmail()) !== -1;
+    }
+
+    function courseNextLesson(course){
+      var nowIso = isoDate(getTodayDate());
+      return (course.lessons || []).slice().filter(function(l){ return l.date >= nowIso; }).sort(function(a,b){ return (a.date+a.startTime).localeCompare(b.date+b.startTime); })[0] || null;
+    }
+
+    function renderCourses(){
+      if(!courseGrid) return;
+      var year = getAcademyYear();
+      var courses = year.courses || [];
+      courseGrid.innerHTML = "";
+      if(coursesVisibleCount) coursesVisibleCount.textContent = String(courses.length);
+      if(coursesStudentCount) coursesStudentCount.textContent = String((year.students || []).length);
+      if(coursesRoleHint){
+        coursesRoleHint.textContent = currentAccessRole === "docente" ? "Vedi solo i corsi associati alla tua email docente." : "Seleziona un corso per aprire registro, iscritti e lezioni.";
+      }
+      if(!courses.length){
+        courseGrid.innerHTML = '<div class="schoolEmptyState">Nessun corso associato a questo account. Chiedi a un Admin o Socio di inserire la tua email nella configurazione del corso.</div>';
+        if(courseDetailCard) courseDetailCard.classList.add("hidden");
+        return;
+      }
+      courses.forEach(function(course){
+        var students = enrolledStudents(course.id);
+        var next = courseNextLesson(course);
+        var card = document.createElement("button");
+        card.type = "button";
+        card.className = "schoolCourseCard" + (selectedCourseId === course.id ? " active" : "");
+        card.innerHTML = '<span class="schoolCourseIcon">'+escapeHtml(course.icon || "🎓")+'</span>'+
+          '<span class="schoolCourseCardMain"><strong>'+escapeHtml(course.name)+'</strong><span>'+escapeHtml(weekdayLabel(course.weekday))+" · "+escapeHtml(course.startTime)+"–"+escapeHtml(course.endTime)+'</span><span class="schoolCourseTeacher">'+escapeHtml(course.teacherName || "Docente da configurare")+'</span></span>'+
+          '<span class="schoolCourseCardSide"><strong>'+students.length+'</strong><span>iscritti</span><small>'+(next ? "Prossima: "+escapeHtml(formatSchoolDate(next.date)) : "Registro vuoto")+'</small></span>';
+        card.addEventListener("click", function(){ selectedCourseId = course.id; renderCourses(); renderCourseDetail(); });
+        courseGrid.appendChild(card);
+      });
+      if(selectedCourseId && !getCourseById(selectedCourseId)) selectedCourseId = null;
+      if(selectedCourseId) renderCourseDetail();
+    }
+
+    function renderCourseDetail(){
+      if(!courseDetailCard) return;
+      var course = getCourseById(selectedCourseId);
+      if(!course){ courseDetailCard.classList.add("hidden"); return; }
+      courseDetailCard.classList.remove("hidden");
+      courseDetailEyebrow.textContent = ACADEMIC_YEAR + " · " + weekdayLabel(course.weekday);
+      courseDetailTitle.textContent = (course.icon || "🎓") + " " + course.name;
+      courseDetailMeta.textContent = course.startTime + "–" + course.endTime + " · " + (course.teacherName || "Docente da configurare");
+      var canManage = currentAccessRole === "admin" || currentAccessRole === "socio";
+      if(courseSettingsCard) courseSettingsCard.classList.toggle("hidden", !canManage);
+      if(canManage){
+        courseTeacherName.value = course.teacherName || "";
+        courseTeacherEmail.value = (course.teacherEmails || []).join(", ");
+        courseWeekday.value = String(course.weekday);
+        courseStartTime.value = course.startTime || "";
+        courseEndTime.value = course.endTime || "";
+        courseFirstDate.value = course.firstDate || "";
+        courseLessonTarget.value = course.lessonTarget === null ? "" : String(course.lessonTarget);
+      }
+      renderCourseRoster(course);
+      resetLessonEditor(course, true);
+      renderCourseLessons(course);
+    }
+
+    function renderCourseRoster(course){
+      if(!courseRoster) return;
+      var students = enrolledStudents(course.id);
+      courseRosterCount.textContent = students.length === 1 ? "1 studente" : students.length + " studenti";
+      courseRoster.innerHTML = "";
+      if(!students.length){ courseRoster.innerHTML = '<div class="schoolEmptyState compact">Nessuno studente iscritto.</div>'; return; }
+      students.forEach(function(st){
+        var row = document.createElement("div"); row.className="schoolRosterRow";
+        row.innerHTML = '<span class="schoolAvatar">'+escapeHtml((st.firstName||st.lastName||"S").charAt(0).toUpperCase())+'</span><span><strong>'+escapeHtml(fullStudentName(st))+'</strong><small>'+escapeHtml(currentAccessRole === "docente" ? "Studente del corso" : (st.email || st.phone || "Nessun contatto"))+'</small></span>';
+        courseRoster.appendChild(row);
+      });
+    }
+
+    function nextCourseDate(course){
+      var dates=(course.lessons||[]).map(function(l){return l.date;}).filter(Boolean).sort();
+      if(!dates.length) return course.firstDate || "";
+      var d=new Date(dates[dates.length-1]+"T12:00:00"); d.setDate(d.getDate()+7); return isoDate(d);
+    }
+
+    function resetLessonEditor(course, clearTopic){
+      if(!course || !lessonDate) return;
+      lessonEditingId.value="";
+      lessonDate.value=nextCourseDate(course);
+      lessonStartTime.value=course.startTime || "";
+      lessonEndTime.value=course.endTime || "";
+      if(clearTopic !== false){ lessonTopic.value=""; lessonNotes.value=""; }
+      cancelLessonEditBtn.classList.add("hidden");
+      saveLessonBtn.textContent="Salva lezione";
+      renderAttendanceEditor(course, null);
+    }
+
+    function renderAttendanceEditor(course, lesson){
+      if(!lessonAttendanceEditor) return;
+      var students=enrolledStudents(course.id);
+      lessonAttendanceEditor.innerHTML="";
+      if(!students.length){ lessonAttendanceEditor.innerHTML='<div class="schoolEmptyState compact">Aggiungi studenti al corso per registrare le presenze.</div>'; return; }
+      students.forEach(function(st){
+        var hasRecorded = !!(lesson && lesson.attendance && lesson.attendance[st.id]);
+        var value = lesson ? (hasRecorded ? lesson.attendance[st.id] : "unmarked") : "present";
+        var row=document.createElement("label"); row.className="schoolAttendanceRow";
+        row.innerHTML='<span>'+escapeHtml(fullStudentName(st))+'</span><select data-attendance-student="'+escapeHtml(st.id)+'"><option value="present">✅ Presente</option><option value="absent">❌ Assente</option><option value="late">🟡 Ritardo</option><option value="unmarked">— Non registrato</option></select>';
+        row.querySelector("select").value=value;
+        lessonAttendanceEditor.appendChild(row);
+      });
+    }
+
+    function collectAttendance(){
+      var out={};
+      if(!lessonAttendanceEditor) return out;
+      Array.prototype.forEach.call(lessonAttendanceEditor.querySelectorAll("select[data-attendance-student]"), function(sel){ out[sel.getAttribute("data-attendance-student")]=sel.value; });
+      return out;
+    }
+
+    function canMutateSchoolData(){
+      if(isLoggedIn() && remoteWriteLocked){ touchAndSave(); return false; }
+      return true;
+    }
+
+    function saveCourseSettings(){
+      var course=getCourseById(selectedCourseId); if(!course || !canMutateSchoolData()) return;
+      if(!(currentAccessRole === "admin" || currentAccessRole === "socio")){ alert(roleRestrictionMessage("courses")); return; }
+      course.teacherName=String(courseTeacherName.value||"").trim();
+      course.teacherEmails=String(courseTeacherEmail.value||"").split(/[,;]+/).map(normalizeEmail).filter(Boolean).filter(function(v,i,a){ return a.indexOf(v)===i; });
+      course.weekday=Number(courseWeekday.value); course.startTime=courseStartTime.value||""; course.endTime=courseEndTime.value||""; course.firstDate=courseFirstDate.value||course.firstDate||"";
+      course.lessonTarget=courseLessonTarget.value === "" ? null : Math.max(0, Number(courseLessonTarget.value)||0);
+      touchAndSave(); renderCourses(); renderCourseDetail();
+    }
+
+    function saveLesson(){
+      var course=getCourseById(selectedCourseId); if(!course || !canEditCourseRegister(course) || !canMutateSchoolData()) return;
+      if(!lessonDate.value){ alert("Inserisci la data della lezione."); return; }
+      var id=lessonEditingId.value;
+      var existing=id ? (course.lessons||[]).find(function(l){return l.id===id;}) : null;
+      var payload=normalizeLesson({
+        id: existing ? existing.id : uid(), date:lessonDate.value, startTime:lessonStartTime.value, endTime:lessonEndTime.value,
+        topic:lessonTopic.value, notes:lessonNotes.value, attendance:collectAttendance(), createdAt:existing ? existing.createdAt : new Date().toISOString(), updatedAt:new Date().toISOString()
+      });
+      if(existing){ var i=course.lessons.indexOf(existing); course.lessons[i]=payload; } else course.lessons.push(payload);
+      touchAndSave(); resetLessonEditor(course, true); renderCourseLessons(course); renderCourses();
+    }
+
+    function editLesson(id){
+      var course=getCourseById(selectedCourseId); if(!course) return;
+      var l=(course.lessons||[]).find(function(x){return x.id===id;}); if(!l) return;
+      lessonEditingId.value=l.id; lessonDate.value=l.date; lessonStartTime.value=l.startTime; lessonEndTime.value=l.endTime; lessonTopic.value=l.topic; lessonNotes.value=l.notes;
+      renderAttendanceEditor(course,l); saveLessonBtn.textContent="Salva modifiche"; cancelLessonEditBtn.classList.remove("hidden");
+      try{ document.getElementById("lessonComposerCard").scrollIntoView({behavior:"smooth",block:"start"}); }catch(e){}
+    }
+
+    function deleteLesson(id){
+      var course=getCourseById(selectedCourseId); if(!course || !canEditCourseRegister(course) || !canMutateSchoolData()) return;
+      if(!confirm("Eliminare questa lezione dal registro?")) return;
+      course.lessons=(course.lessons||[]).filter(function(l){return l.id!==id;}); touchAndSave(); resetLessonEditor(course,true); renderCourseLessons(course); renderCourses();
+    }
+
+    function renderCourseLessons(course){
+      if(!courseLessonList) return;
+      var lessons=(course.lessons||[]).slice().sort(function(a,b){return (b.date+b.startTime).localeCompare(a.date+a.startTime);});
+      courseLessonCount.textContent=lessons.length ? (lessons.length===1 ? "1 lezione" : lessons.length+" lezioni") : "Nessuna lezione";
+      courseLessonList.innerHTML="";
+      if(!lessons.length){ courseLessonList.innerHTML='<div class="schoolEmptyState">Il registro è pronto. Inserisci la prima lezione quando vuoi.</div>'; return; }
+      var editable=canEditCourseRegister(course);
+      lessons.forEach(function(l){
+        var roster=enrolledStudents(course.id); var counts={present:0,absent:0,late:0}; roster.forEach(function(st){ var v=(l.attendance||{})[st.id]; if(v && v !== "unmarked") counts[v]=(counts[v]||0)+1; });
+        var card=document.createElement("div"); card.className="schoolLessonCard";
+        card.innerHTML='<div class="schoolLessonDate"><strong>'+escapeHtml(formatSchoolDate(l.date))+'</strong><span>'+escapeHtml((l.startTime||course.startTime)+"–"+(l.endTime||course.endTime))+'</span></div><div class="schoolLessonMain"><strong>'+escapeHtml(l.topic||"Lezione")+'</strong>'+(l.notes?'<p>'+escapeHtml(l.notes)+'</p>':'')+'<div class="schoolAttendanceChips"><span>✅ '+counts.present+'</span><span>❌ '+counts.absent+'</span><span>🟡 '+counts.late+'</span></div></div>';
+        if(editable){ var actions=document.createElement("div"); actions.className="schoolLessonActions"; var e=document.createElement("button"); e.className="smallBtn"; e.textContent="Modifica"; e.onclick=function(){editLesson(l.id);}; var d=document.createElement("button"); d.className="smallBtn danger"; d.textContent="Elimina"; d.onclick=function(){deleteLesson(l.id);}; actions.append(e,d); card.appendChild(actions); }
+        courseLessonList.appendChild(card);
+      });
+    }
+
+    function populateStudentCourseFilter(){
+      if(!studentCourseFilter) return;
+      var current=studentCourseFilter.value||"all"; studentCourseFilter.innerHTML='<option value="all">Tutti i corsi</option>';
+      (getAcademyYear().courses||[]).forEach(function(c){ var o=document.createElement("option"); o.value=c.id; o.textContent=c.name; studentCourseFilter.appendChild(o); });
+      studentCourseFilter.value = Array.prototype.some.call(studentCourseFilter.options,function(o){return o.value===current;}) ? current : "all";
+    }
+
+    function attendanceStatsForStudent(student){
+      var stats={present:0,absent:0,late:0,total:0};
+      (getAcademyYear().courses||[]).forEach(function(course){ if((student.courseIds||[]).indexOf(course.id)===-1) return; (course.lessons||[]).forEach(function(l){ var v=(l.attendance||{})[student.id]; if(!v || v === "unmarked") return; stats.total++; stats[v]=(stats[v]||0)+1; }); });
+      return stats;
+    }
+
+    function renderStudents(){
+      if(!studentList || !canCurrentRoleAccess("students")) return;
+      populateStudentCourseFilter();
+      var q=String(studentSearch && studentSearch.value || "").trim().toLowerCase(); var filter=studentCourseFilter ? studentCourseFilter.value : "all";
+      var all=(getAcademyYear().students||[]).slice().sort(function(a,b){return fullStudentName(a).localeCompare(fullStudentName(b),"it");});
+      var visible=all.filter(function(st){ if(filter!=="all" && (st.courseIds||[]).indexOf(filter)===-1) return false; if(!q) return true; return [fullStudentName(st),st.email,st.phone,st.notes].join(" ").toLowerCase().indexOf(q)!==-1; });
+      studentListMeta.textContent=visible.length+" visibili · "+all.length+" totali"; studentList.innerHTML="";
+      if(!visible.length){ studentList.innerHTML='<div class="schoolEmptyState">Nessuno studente corrisponde ai filtri.</div>'; return; }
+      visible.forEach(function(st){
+        var courses=(st.courseIds||[]).map(getCourseById).filter(Boolean); var stats=attendanceStatsForStudent(st); var card=document.createElement("button"); card.type="button"; card.className="schoolStudentCard";
+        card.innerHTML='<span class="schoolAvatar large">'+escapeHtml((st.firstName||st.lastName||"S").charAt(0).toUpperCase())+'</span><span class="schoolStudentCardMain"><strong>'+escapeHtml(fullStudentName(st))+'</strong><span>'+escapeHtml(st.email||st.phone||"Contatti non inseriti")+'</span><span class="schoolStudentCourses">'+courses.map(function(c){return escapeHtml(c.icon+" "+c.name);}).join(" · ")+'</span></span><span class="schoolStudentAttendance"><strong>'+stats.present+'/'+stats.total+'</strong><span>presenze</span></span>';
+        card.addEventListener("click",function(){openStudentModal(st.id);}); studentList.appendChild(card);
+      });
+    }
+
+    function renderStudentCourseChecks(student){
+      if(!studentCourseChecks) return; studentCourseChecks.innerHTML=""; var selected=student ? student.courseIds||[] : [];
+      (getAcademyYear().courses||[]).forEach(function(c){ var label=document.createElement("label"); label.className="schoolCheckPill"; label.innerHTML='<input type="checkbox" value="'+escapeHtml(c.id)+'"> <span>'+escapeHtml(c.icon+" "+c.name)+'</span>'; label.querySelector("input").checked=selected.indexOf(c.id)!==-1; studentCourseChecks.appendChild(label); });
+    }
+
+    function renderStudentAttendanceSummary(student){
+      if(!studentAttendanceSummary) return; if(!student){ studentAttendanceSummary.innerHTML=""; return; }
+      var stats=attendanceStatsForStudent(student); var pct=stats.total ? Math.round((stats.present+stats.late)/stats.total*100) : 0;
+      studentAttendanceSummary.innerHTML='<div class="schoolEyebrow">Presenze registrate</div><div class="schoolAttendanceSummaryGrid"><div><strong>'+stats.present+'</strong><span>Presenti</span></div><div><strong>'+stats.absent+'</strong><span>Assenze</span></div><div><strong>'+stats.late+'</strong><span>Ritardi</span></div><div><strong>'+pct+'%</strong><span>Frequenza</span></div></div>';
+    }
+
+    function openStudentModal(id){
+      if(!canCurrentRoleAccess("students")) return;
+      var st=id?getStudentById(id):null; studentEditingId.value=st?st.id:""; studentModalTitle.textContent=st?"Modifica studente":"Nuovo studente";
+      studentFirstName.value=st?st.firstName:""; studentLastName.value=st?st.lastName:""; studentEmail.value=st?st.email:""; studentPhone.value=st?st.phone:""; studentNotes.value=st?st.notes:"";
+      renderStudentCourseChecks(st); renderStudentAttendanceSummary(st); deleteStudentBtn.classList.toggle("hidden",!st); studentOverlay.style.display="flex"; studentOverlay.classList.add("open"); studentOverlay.setAttribute("aria-hidden","false"); setTimeout(function(){try{studentFirstName.focus();}catch(e){}},30);
+    }
+    function closeStudentModal(){ if(!studentOverlay)return; studentOverlay.style.display="none"; studentOverlay.classList.remove("open"); studentOverlay.setAttribute("aria-hidden","true"); }
+    function saveStudent(){
+      if(!canCurrentRoleAccess("students") || !canMutateSchoolData()) return; var first=String(studentFirstName.value||"").trim(), last=String(studentLastName.value||"").trim(); if(!first && !last){alert("Inserisci almeno nome o cognome.");return;}
+      var id=studentEditingId.value; var existing=id?getStudentById(id):null; var checked=Array.prototype.slice.call(studentCourseChecks.querySelectorAll('input[type="checkbox"]:checked')).map(function(x){return x.value;});
+      var payload=normalizeStudent({id:existing?existing.id:uid(),firstName:first,lastName:last,email:studentEmail.value,phone:studentPhone.value,notes:studentNotes.value,courseIds:checked,finance:existing?existing.finance:null,createdAt:existing?existing.createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
+      var arr=getAcademyYear().students; if(existing){var i=arr.indexOf(existing);arr[i]=payload;}else arr.push(payload); touchAndSave(); closeStudentModal(); renderStudents(); renderCourses(); if(selectedCourseId) renderCourseDetail();
+    }
+    function deleteStudent(){
+      if(!canCurrentRoleAccess("students") || !canMutateSchoolData())return; var id=studentEditingId.value; var st=getStudentById(id); if(!st)return; if(!confirm("Eliminare "+fullStudentName(st)+" dall'anno accademico?"))return;
+      getAcademyYear().students=getAcademyYear().students.filter(function(x){return x.id!==id;}); (getAcademyYear().courses||[]).forEach(function(c){(c.lessons||[]).forEach(function(l){if(l.attendance)delete l.attendance[id];});}); touchAndSave(); closeStudentModal(); renderStudents(); renderCourses(); if(selectedCourseId) renderCourseDetail();
+    }
+
     function renderAll(){
       renderCalendar();
       renderTodos();
@@ -2739,6 +3232,8 @@ todoActiveList.appendChild(item);
       renderSummary();
       renderContacts();
       renderTodayPanel();
+      renderCourses();
+      renderStudents();
     }
 
     // Wire
@@ -2787,7 +3282,8 @@ todoActiveList.appendChild(item);
         return;
       }
       if(window.AgendaAccount && window.AgendaAccount.isOpen && window.AgendaAccount.isOpen()) return;
-      if(contactOverlay && contactOverlay.style.display === "flex") closeContactModal();
+      if(studentOverlay && studentOverlay.style.display === "flex") closeStudentModal();
+      else if(contactOverlay && contactOverlay.style.display === "flex") closeContactModal();
       else closeDay();
     });
 
@@ -2870,6 +3366,21 @@ todoActiveList.appendChild(item);
         touchAndSave();
       });
     }
+
+
+
+    if(closeCourseDetailBtn) closeCourseDetailBtn.addEventListener("click", function(){ selectedCourseId=null; courseDetailCard.classList.add("hidden"); renderCourses(); });
+    if(saveCourseSettingsBtn) saveCourseSettingsBtn.addEventListener("click", saveCourseSettings);
+    if(saveLessonBtn) saveLessonBtn.addEventListener("click", saveLesson);
+    if(cancelLessonEditBtn) cancelLessonEditBtn.addEventListener("click", function(){ var c=getCourseById(selectedCourseId); if(c) resetLessonEditor(c,true); });
+    if(markAllPresentBtn) markAllPresentBtn.addEventListener("click", function(){ if(!lessonAttendanceEditor)return; Array.prototype.forEach.call(lessonAttendanceEditor.querySelectorAll("select"),function(sel){sel.value="present";}); });
+    if(addStudentBtn) addStudentBtn.addEventListener("click", function(){ openStudentModal(null); });
+    if(studentSearch) studentSearch.addEventListener("input", renderStudents);
+    if(studentCourseFilter) studentCourseFilter.addEventListener("change", renderStudents);
+    if(saveStudentBtn) saveStudentBtn.addEventListener("click", saveStudent);
+    if(deleteStudentBtn) deleteStudentBtn.addEventListener("click", deleteStudent);
+    if(closeStudentBtn) closeStudentBtn.addEventListener("click", closeStudentModal);
+    if(studentOverlay) studentOverlay.addEventListener("click", function(ev){ if(ev.target===studentOverlay) closeStudentModal(); });
 
     // Init
     applyTheme(getSavedTheme(), false);

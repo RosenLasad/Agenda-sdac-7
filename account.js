@@ -92,21 +92,21 @@
       return {
         title: "Accesso completo",
         text: "Puoi usare tutte le aree di SDAC Agenda, incluse Impostazioni e le future sezioni amministrative.",
-        summary: "Calendario · Oggi · Taccuino · Rubrica · Impostazioni · future aree riservate"
+        summary: "Calendario · Oggi · Taccuino · Rubrica · Corsi · Studenti · Impostazioni · future aree riservate"
       };
     }
     if(role === "socio"){
       return {
         title: "Accesso Socio",
         text: "Puoi usare le aree operative condivise. Il menu Impostazioni resta riservato all'Admin.",
-        summary: "Calendario · Oggi · Taccuino · Rubrica · Cloud"
+        summary: "Calendario · Oggi · Taccuino · Rubrica · Corsi · Studenti · Cloud"
       };
     }
     if(role === "docente"){
       return {
         title: "Accesso Docente",
-        text: "Puoi usare Calendario, Oggi e Cloud. Taccuino, Rubrica, Impostazioni e aree amministrative non sono disponibili.",
-        summary: "Calendario · Oggi · Cloud"
+        text: "Puoi usare Calendario, Oggi, Cloud e il Registro dei corsi associati alla tua email. Taccuino, Rubrica, Studenti, Impostazioni e aree amministrative non sono disponibili.",
+        summary: "Calendario · Oggi · Corsi assegnati · Registro lezioni · Cloud"
       };
     }
     return {

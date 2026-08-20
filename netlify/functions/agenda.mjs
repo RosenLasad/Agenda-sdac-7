@@ -77,7 +77,73 @@ function cloneJson(value) {
     : value;
 }
 
-function projectStateForRole(data, role) {
+
+function normalizeEmail(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function teacherCourseIds(academy, email) {
+  const userEmail = normalizeEmail(email);
+  const ids = new Set();
+  const years = academy?.years && typeof academy.years === "object" ? academy.years : {};
+  for (const year of Object.keys(years)) {
+    for (const course of Array.isArray(years[year]?.courses) ? years[year].courses : []) {
+      const emails = Array.isArray(course?.teacherEmails) ? course.teacherEmails.map(normalizeEmail) : [];
+      if (userEmail && emails.includes(userEmail)) ids.add(String(course.id));
+    }
+  }
+  return ids;
+}
+
+function projectAcademyForTeacher(academy, email) {
+  const source = academy && typeof academy === "object" ? cloneJson(academy) : { activeYear:"2026/2027", years:{} };
+  const allowed = teacherCourseIds(source, email);
+  const projected = { activeYear: source.activeYear || "2026/2027", years:{} };
+  for (const year of Object.keys(source.years || {})) {
+    const y = source.years[year] || {};
+    const courses = (Array.isArray(y.courses) ? y.courses : []).filter((c) => allowed.has(String(c.id)));
+    const ids = new Set(courses.map((c) => String(c.id)));
+    const students = (Array.isArray(y.students) ? y.students : [])
+      .filter((st) => (Array.isArray(st.courseIds) ? st.courseIds : []).some((id) => ids.has(String(id))))
+      .map((st) => ({
+        id: st.id,
+        firstName: st.firstName || "",
+        lastName: st.lastName || "",
+        email: "",
+        phone: "",
+        notes: "",
+        courseIds: (Array.isArray(st.courseIds) ? st.courseIds : []).filter((id) => ids.has(String(id))),
+        finance: { totalFee:0, paid:0, installments:[], notes:"" },
+        createdAt: st.createdAt || null,
+        updatedAt: st.updatedAt || null
+      }));
+    projected.years[year] = { courses, students };
+  }
+  return projected;
+}
+
+function mergeAcademyForTeacher(existingAcademy, incomingAcademy, email) {
+  const current = existingAcademy && typeof existingAcademy === "object" ? cloneJson(existingAcademy) : { activeYear:"2026/2027", years:{} };
+  const incoming = incomingAcademy && typeof incomingAcademy === "object" ? incomingAcademy : { years:{} };
+  const userEmail = normalizeEmail(email);
+  for (const year of Object.keys(current.years || {})) {
+    const currentCourses = Array.isArray(current.years[year]?.courses) ? current.years[year].courses : [];
+    const incomingCourses = Array.isArray(incoming.years?.[year]?.courses) ? incoming.years[year].courses : [];
+    const incomingById = new Map(incomingCourses.map((c) => [String(c.id), c]));
+    current.years[year].courses = currentCourses.map((course) => {
+      const courseEmails = Array.isArray(course?.teacherEmails) ? course.teacherEmails.map(normalizeEmail) : [];
+      if (!userEmail || !courseEmails.includes(userEmail)) return course;
+      const inc = incomingById.get(String(course.id));
+      if (!inc) return course;
+      // Un docente può scrivere il registro del proprio corso, ma non
+      // modificare configurazione, iscrizioni, contatti o dati economici.
+      return { ...course, lessons: Array.isArray(inc.lessons) ? cloneJson(inc.lessons) : (course.lessons || []) };
+    });
+  }
+  return current;
+}
+
+function projectStateForRole(data, role, user) {
   if (!data || typeof data !== "object") return null;
   if (role === "admin" || role === "socio") return cloneJson(data);
 
@@ -95,11 +161,12 @@ function projectStateForRole(data, role) {
       editorOpen: false,
       favoritesOnly: false
     },
-    contacts: []
+    contacts: [],
+    academy: projectAcademyForTeacher(data.academy, user?.email || "")
   };
 }
 
-function mergeStateForRole(existing, incoming, role) {
+function mergeStateForRole(existing, incoming, role, user) {
   const current = existing && typeof existing === "object" ? cloneJson(existing) : {};
   const payload = incoming && typeof incoming === "object" ? cloneJson(incoming) : {};
 
@@ -110,7 +177,8 @@ function mergeStateForRole(existing, incoming, role) {
   return {
     ...current,
     version: current.version || payload.version || "v1-notes",
-    events: payload.events && typeof payload.events === "object" ? payload.events : (current.events || {})
+    events: payload.events && typeof payload.events === "object" ? payload.events : (current.events || {}),
+    academy: mergeAcademyForTeacher(current.academy, payload.academy, user?.email || "")
   };
 }
 
@@ -176,7 +244,7 @@ export default async (req, context) => {
       const shared = await loadSharedOrMigrate(store, user);
       return json({
         ok: true,
-        data: projectStateForRole(shared.data, role),
+        data: projectStateForRole(shared.data, role, user),
         updatedAt: shared.data?.updatedAt || null,
         key: SHARED_STATE_KEY,
         shared: true,
@@ -224,12 +292,12 @@ export default async (req, context) => {
             message: "Il cloud contiene modifiche piu recenti. Aggiorna prima di salvare.",
             remoteUpdatedAt: current?.updatedAt || null,
             key: SHARED_STATE_KEY,
-            data: projectStateForRole(current, role)
+            data: projectStateForRole(current, role, user)
           }, 409);
         }
       }
 
-      const nextState = mergeStateForRole(current, payload, role);
+      const nextState = mergeStateForRole(current, payload, role, user);
       nextState.updatedAt = new Date().toISOString();
 
       await store.setJSON(SHARED_STATE_KEY, nextState);
