@@ -4031,3 +4031,96 @@ html[data-theme="light"] .bookmarkTab--students{ background:linear-gradient(180d
 .schoolStudentModalBody{ grid-template-columns:1fr; }
 
 .schoolView{ margin-top:10px; }
+
+
+/* ===== SDAC Amministrazione / quote studenti ===== */
+.bookmarkTab--administration{ --bookmark-accent:#c4933f; background:linear-gradient(180deg, rgba(116,77,25,.98), rgba(74,48,17,.98)); border-color:rgba(212,168,85,.42); }
+html[data-theme="light"] .bookmarkTab--administration{ background:linear-gradient(180deg, rgba(255,247,226,.99), rgba(238,218,172,.98)); border-color:rgba(177,126,41,.30); }
+.administrationHeroStats{ display:grid; grid-template-columns:repeat(4,minmax(92px,1fr)); gap:8px; }
+.administrationSectionTabs{ display:flex; gap:8px; flex-wrap:wrap; padding:2px 0; }
+.administrationSectionTab{ appearance:none; border:1px solid var(--line); color:var(--text); background:var(--panel); border-radius:999px; padding:8px 12px; font-weight:750; cursor:pointer; }
+.administrationSectionTab:hover:not(:disabled),.administrationSectionTab.active{ border-color:rgba(196,147,63,.72); background:rgba(196,147,63,.12); }
+.administrationSectionTab small{ display:block; font-size:8px; font-weight:650; color:var(--muted); margin-top:1px; }
+.administrationSectionTab.future{ opacity:.55; cursor:not-allowed; }
+body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
+.administrationFilterRow{ display:grid; grid-template-columns:minmax(0,1fr) minmax(170px,.34fr) minmax(170px,.34fr); gap:12px; }
+.administrationFeeList,.administrationDeadlineList,.financePaymentList{ display:grid; gap:9px; }
+.administrationFeeRow{ border:1px solid var(--line); border-radius:15px; background:var(--panel); padding:12px; display:grid; grid-template-columns:minmax(180px,1.25fr) minmax(160px,.9fr) minmax(210px,1fr) auto; gap:12px; align-items:center; }
+.administrationFeePerson{ display:grid; gap:3px; min-width:0; }
+.administrationFeePerson strong{ font-size:15px; }
+.administrationFeePerson span{ color:var(--muted); font-size:12px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.administrationAmounts{ display:grid; grid-template-columns:repeat(3,1fr); gap:5px; }
+.administrationAmounts span{ display:grid; gap:1px; font-size:9px; color:var(--muted); text-transform:uppercase; letter-spacing:.04em; }
+.administrationAmounts strong{ color:var(--text); font-size:13px; text-transform:none; letter-spacing:0; }
+.administrationStatusArea{ display:grid; gap:4px; justify-items:start; }
+.financeStatusBadge,.schoolFinanceStatus{ display:inline-flex; align-items:center; width:max-content; max-width:100%; border:1px solid var(--line); border-radius:999px; padding:4px 8px; font-size:11px; line-height:1.1; }
+.financeStatusBadge[data-status="settled"],.schoolFinanceStatus[data-status="settled"]{ color:#68d18e; border-color:rgba(71,183,111,.38); background:rgba(71,183,111,.10); }
+.financeStatusBadge[data-status="ok"],.schoolFinanceStatus[data-status="ok"]{ color:#e3bb64; border-color:rgba(218,168,76,.38); background:rgba(218,168,76,.10); }
+.financeStatusBadge[data-status="unpaid"],.schoolFinanceStatus[data-status="unpaid"]{ color:var(--muted); }
+.financeStatusBadge[data-status="overdue"],.schoolFinanceStatus[data-status="overdue"]{ color:#f0717e; border-color:rgba(226,73,92,.40); background:rgba(226,73,92,.10); }
+.administrationDueText{ font-size:11px; color:var(--muted); }
+.administrationDueText.overdue{ color:#f0717e; }
+.administrationCourseSummary{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; }
+.administrationCourseCard{ border:1px solid var(--line); background:var(--panel); border-radius:15px; padding:13px; display:grid; gap:8px; }
+.administrationCourseCardHead{ display:flex; justify-content:space-between; gap:8px; align-items:start; }
+.administrationCourseCardHead strong{ font-size:14px; }
+.administrationCourseCardHead span{ color:var(--muted); font-size:11px; }
+.administrationCourseProgress{ height:6px; background:rgba(255,255,255,.06); border-radius:999px; overflow:hidden; }
+.administrationCourseProgress i{ display:block; height:100%; width:0; background:currentColor; border-radius:inherit; color:#c4933f; }
+.administrationCourseTotals{ display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:11px; }
+.administrationDeadlineRow{ border:1px solid var(--line); border-radius:14px; background:var(--panel); padding:11px 12px; display:grid; grid-template-columns:110px minmax(0,1fr) auto; gap:12px; align-items:center; }
+.administrationDeadlineDate{ display:grid; gap:2px; }
+.administrationDeadlineDate strong{ font-size:14px; }
+.administrationDeadlineDate span{ color:var(--muted); font-size:10px; }
+.administrationDeadlineMain{ display:grid; gap:2px; min-width:0; }
+.administrationDeadlineMain span{ color:var(--muted); font-size:11px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.financeModal{ max-width:900px; }
+.financeModalBody{ display:grid; gap:14px; }
+.financeSummaryGrid{ display:grid; grid-template-columns:repeat(4,1fr); gap:8px; }
+.financeSummaryGrid>div{ border:1px solid var(--line); border-radius:13px; padding:10px; background:rgba(255,255,255,.025); }
+.financeSummaryGrid span{ display:block; color:var(--muted); font-size:10px; margin-bottom:3px; }
+.financeSummaryGrid strong:not(.financeStatusBadge){ font-size:18px; }
+.financeSettingsGrid,.financePaymentForm{ display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px 12px; }
+.financeWideField{ grid-column:1/-1; }
+.financeSettingsActions{ display:flex; justify-content:flex-start; }
+.financePaymentRow{ border:1px solid var(--line); border-radius:13px; padding:10px 11px; display:grid; grid-template-columns:100px 110px 1fr auto; gap:10px; align-items:center; }
+.financePaymentRow .financePaymentKind{ font-weight:800; }
+.financePaymentRow .financePaymentAmount{ font-weight:900; font-size:15px; }
+.financePaymentRow .financePaymentMeta{ display:grid; gap:2px; min-width:0; color:var(--muted); font-size:11px; }
+.financePaymentRow .financePaymentMeta span{ white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.financeAddCard{ margin-top:2px; }
+.schoolStudentCard{ cursor:default; grid-template-columns:minmax(0,1fr) auto; }
+.schoolStudentOpenBtn{ appearance:none; width:100%; border:0; background:transparent; color:inherit; padding:0; min-width:0; display:grid; grid-template-columns:auto minmax(0,1fr) auto; gap:12px; align-items:center; text-align:left; cursor:pointer; }
+.schoolStudentOpenBtn:hover .schoolStudentCardMain strong{ text-decoration:underline; text-decoration-thickness:1px; text-underline-offset:3px; }
+.schoolStudentFinance{ appearance:none; border:1px solid var(--line); background:rgba(255,255,255,.025); color:inherit; border-radius:11px; padding:7px 9px; display:grid; gap:3px; min-width:150px; text-align:left; cursor:pointer; }
+.schoolStudentFinance:hover{ border-color:rgba(196,147,63,.68); background:rgba(196,147,63,.08); }
+.schoolStudentFinanceAmounts{ font-size:10px; color:var(--muted); white-space:nowrap; }
+.studentFinanceModalLink{ margin-top:12px; display:flex; justify-content:flex-end; }
+
+@media (max-width:900px){
+  .administrationFeeRow{ grid-template-columns:minmax(160px,1fr) minmax(150px,.8fr); }
+  .administrationFeeRow>.administrationStatusArea,.administrationFeeRow>.btn{ justify-self:start; }
+  .administrationCourseSummary{ grid-template-columns:repeat(2,minmax(0,1fr)); }
+}
+@media (max-width:720px){
+  .administrationHeroStats{ width:100%; grid-template-columns:repeat(2,1fr); }
+  .administrationFilterRow{ grid-template-columns:1fr; }
+  .administrationFeeRow{ grid-template-columns:1fr; gap:9px; }
+  .administrationAmounts{ max-width:360px; }
+  .administrationCourseSummary{ grid-template-columns:1fr; }
+  .administrationDeadlineRow{ grid-template-columns:1fr; gap:6px; }
+  .financeSummaryGrid{ grid-template-columns:repeat(2,1fr); }
+  .financeSettingsGrid,.financePaymentForm{ grid-template-columns:1fr; }
+  .financeWideField{ grid-column:auto; }
+  .financePaymentRow{ grid-template-columns:1fr auto; }
+  .financePaymentRow .financePaymentMeta{ grid-column:1/-1; }
+  .schoolStudentCard{ grid-template-columns:1fr; }
+  .schoolStudentOpenBtn{ grid-template-columns:auto minmax(0,1fr) auto; }
+  .schoolStudentFinance{ width:100%; min-width:0; grid-template-columns:auto 1fr; align-items:center; }
+  .schoolStudentFinanceAmounts{ justify-self:end; }
+}
+@media (max-width:480px){
+  .schoolStudentOpenBtn{ grid-template-columns:auto minmax(0,1fr); }
+  .schoolStudentOpenBtn .schoolStudentAttendance{ grid-column:2; text-align:left; display:flex; gap:5px; align-items:baseline; }
+  .administrationAmounts{ grid-template-columns:1fr; }
+}

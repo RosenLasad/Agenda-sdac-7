@@ -92,14 +92,14 @@
       return {
         title: "Accesso completo",
         text: "Puoi usare tutte le aree di SDAC Agenda, incluse Impostazioni e le future sezioni amministrative.",
-        summary: "Calendario · Oggi · Taccuino · Rubrica · Corsi · Studenti · Impostazioni · future aree riservate"
+        summary: "Calendario · Oggi · Taccuino · Rubrica · Corsi · Studenti · Amministrazione · Impostazioni · future aree riservate"
       };
     }
     if(role === "socio"){
       return {
         title: "Accesso Socio",
-        text: "Puoi usare le aree operative condivise. Il menu Impostazioni resta riservato all'Admin.",
-        summary: "Calendario · Oggi · Taccuino · Rubrica · Corsi · Studenti · Cloud"
+        text: "Puoi usare le aree operative condivise e gestire quote/pagamenti degli studenti. Impostazioni e le future voci economiche generali della scuola restano riservate all'Admin.",
+        summary: "Calendario · Oggi · Taccuino · Rubrica · Corsi · Studenti · Amministrazione (quote studenti) · Cloud"
       };
     }
     if(role === "docente"){

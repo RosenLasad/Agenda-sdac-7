@@ -279,12 +279,12 @@
 
     var ACADEMIC_YEAR = "2026/2027";
     var DEFAULT_COURSE_DEFS = [
-      { id:"regia", name:"Regia", icon:"🎬", weekday:4, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-22" },
-      { id:"sceneggiatura", name:"Sceneggiatura", icon:"✍️", weekday:2, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-20" },
-      { id:"operatore-dop", name:"Operatore + D.O.P.", icon:"📷", weekday:1, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-19" },
-      { id:"montaggio", name:"Montaggio", icon:"🖥️", weekday:3, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-21" },
-      { id:"colonne-sonore", name:"Colonne sonore", icon:"🎼", weekday:5, startTime:"15:00", endTime:"17:00", firstDate:"2026-10-23" },
-      { id:"tecnico-suono", name:"Tecnico del suono", icon:"🎚️", weekday:5, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-23" }
+      { id:"regia", name:"Regia", icon:"🎬", fee:1500, weekday:4, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-22" },
+      { id:"sceneggiatura", name:"Sceneggiatura", icon:"✍️", fee:1000, weekday:2, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-20" },
+      { id:"operatore-dop", name:"Operatore + D.O.P.", icon:"📷", fee:1200, weekday:1, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-19" },
+      { id:"montaggio", name:"Montaggio", icon:"🖥️", fee:1000, weekday:3, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-21" },
+      { id:"colonne-sonore", name:"Colonne sonore", icon:"🎼", fee:1000, weekday:5, startTime:"15:00", endTime:"17:00", firstDate:"2026-10-23" },
+      { id:"tecnico-suono", name:"Tecnico del suono", icon:"🎚️", fee:1000, weekday:5, startTime:"17:00", endTime:"19:00", firstDate:"2026-10-23" }
     ];
 
     function normalizeEmail(value){ return String(value || "").trim().toLowerCase(); }
@@ -303,6 +303,7 @@
                 startTime:def.startTime,
                 endTime:def.endTime,
                 firstDate:def.firstDate,
+                fee:def.fee,
                 lessonTarget:null,
                 teacherName:"",
                 teacherEmails:[],
@@ -352,6 +353,7 @@
         startTime:String(c.startTime || f.startTime || "17:00"),
         endTime:String(c.endTime || f.endTime || "19:00"),
         firstDate:String(c.firstDate || f.firstDate || "").slice(0,10),
+        fee:Math.max(0, Number(c.fee !== undefined ? c.fee : (f.fee !== undefined ? f.fee : 1000)) || 0),
         lessonTarget:c.lessonTarget === null || c.lessonTarget === "" || typeof c.lessonTarget === "undefined" ? null : Math.max(0, Number(c.lessonTarget) || 0),
         teacherName:String(c.teacherName || "").trim(),
         teacherEmails:emails.map(normalizeEmail).filter(Boolean).filter(function(v,i,a){ return a.indexOf(v) === i; }),
@@ -359,8 +361,62 @@
       };
     }
 
+    function standardFeeForCourseId(courseId){
+      var def = DEFAULT_COURSE_DEFS.find(function(item){ return item.id === String(courseId || ""); });
+      return def ? Number(def.fee || 0) : 0;
+    }
+
+    function normalizeFinancePayment(raw){
+      var p = raw && typeof raw === "object" ? raw : {};
+      var kind = String(p.kind || "payment").toLowerCase() === "deposit" ? "deposit" : "payment";
+      return {
+        id:p.id || uid(),
+        kind:kind,
+        amount:Math.max(0, Number(p.amount || 0) || 0),
+        date:String(p.date || "").slice(0,10),
+        method:String(p.method || "").trim(),
+        note:String(p.note || "").trim(),
+        createdAt:p.createdAt || new Date().toISOString()
+      };
+    }
+
+    function normalizeFinanceEnrollment(raw, courseId){
+      var f = raw && typeof raw === "object" ? raw : {};
+      return {
+        courseFee:Math.max(0, Number(f.courseFee !== undefined ? f.courseFee : standardFeeForCourseId(courseId)) || 0),
+        depositAmount:Math.max(0, Number(f.depositAmount !== undefined ? f.depositAmount : 300) || 0),
+        payments:Array.isArray(f.payments) ? f.payments.map(normalizeFinancePayment).filter(function(p){ return p.amount > 0; }) : [],
+        nextDueDate:String(f.nextDueDate || "").slice(0,10),
+        nextDueNote:String(f.nextDueNote || "").trim(),
+        notes:String(f.notes || "").trim()
+      };
+    }
+
+    function normalizeStudentFinance(raw, courseIds){
+      var f = raw && typeof raw === "object" ? raw : {};
+      var source = f.enrollments && typeof f.enrollments === "object" ? f.enrollments : {};
+      var enrollments = {};
+      Object.keys(source).forEach(function(courseId){ enrollments[String(courseId)] = normalizeFinanceEnrollment(source[courseId], courseId); });
+      (courseIds || []).forEach(function(courseId){ if(!enrollments[courseId]) enrollments[courseId] = normalizeFinanceEnrollment(null, courseId); });
+
+      // Migrazione morbida del vecchio finance globale, se esiste e lo studente ha un solo corso.
+      if(!f.enrollments && (courseIds || []).length === 1 && (Number(f.totalFee || 0) || Number(f.paid || 0) || (Array.isArray(f.installments) && f.installments.length))){
+        var cid = courseIds[0];
+        var legacy = enrollments[cid];
+        if(Number(f.totalFee || 0) > 0) legacy.courseFee = Number(f.totalFee);
+        var legacyPayments = Array.isArray(f.installments) ? f.installments.map(function(item){
+          return normalizeFinancePayment({ id:item.id, kind:item.kind || "payment", amount:item.amount || item.paid || 0, date:item.date || item.paidAt || "", method:item.method || "", note:item.note || "", createdAt:item.createdAt });
+        }).filter(function(p){ return p.amount > 0; }) : [];
+        if(!legacyPayments.length && Number(f.paid || 0) > 0) legacyPayments.push(normalizeFinancePayment({ kind:"payment", amount:Number(f.paid), note:"Importo migrato dalla versione precedente" }));
+        legacy.payments = legacyPayments;
+        legacy.notes = String(f.notes || "");
+      }
+      return { enrollments:enrollments };
+    }
+
     function normalizeStudent(raw){
       var st = raw && typeof raw === "object" ? raw : {};
+      var courseIds = Array.isArray(st.courseIds) ? st.courseIds.map(String) : [];
       return {
         id:st.id || uid(),
         firstName:String(st.firstName || "").trim(),
@@ -368,13 +424,8 @@
         email:String(st.email || "").trim(),
         phone:String(st.phone || "").trim(),
         notes:String(st.notes || "").trim(),
-        courseIds:Array.isArray(st.courseIds) ? st.courseIds.map(String) : [],
-        finance:st.finance && typeof st.finance === "object" ? {
-          totalFee:Number(st.finance.totalFee || 0),
-          paid:Number(st.finance.paid || 0),
-          installments:Array.isArray(st.finance.installments) ? st.finance.installments : [],
-          notes:String(st.finance.notes || "")
-        } : { totalFee:0, paid:0, installments:[], notes:"" },
+        courseIds:courseIds,
+        finance:normalizeStudentFinance(st.finance, courseIds),
         createdAt:st.createdAt || new Date().toISOString(),
         updatedAt:st.updatedAt || st.createdAt || new Date().toISOString()
       };
@@ -434,11 +485,20 @@
         var courses = (y.courses || []).filter(function(course){ return userEmail && (course.teacherEmails || []).map(normalizeEmail).indexOf(userEmail) !== -1; });
         var ids = courses.map(function(c){ return c.id; });
         var students = (y.students || []).filter(function(st){ return (st.courseIds || []).some(function(id){ return ids.indexOf(id) !== -1; }); }).map(function(st){
-          return { id:st.id, firstName:st.firstName, lastName:st.lastName, email:"", phone:"", notes:"", courseIds:(st.courseIds || []).filter(function(id){ return ids.indexOf(id) !== -1; }), finance:{ totalFee:0, paid:0, installments:[], notes:"" }, createdAt:st.createdAt, updatedAt:st.updatedAt };
+          return { id:st.id, firstName:st.firstName, lastName:st.lastName, email:"", phone:"", notes:"", courseIds:(st.courseIds || []).filter(function(id){ return ids.indexOf(id) !== -1; }), finance:{ enrollments:{} }, createdAt:st.createdAt, updatedAt:st.updatedAt };
         });
         projected.years[year] = { courses:courses, students:students };
       });
       return normalizeAcademyState(projected);
+    }
+
+    function normalizeAdministrationState(raw){
+      var a = raw && typeof raw === "object" ? raw : {};
+      return {
+        expenses:Array.isArray(a.expenses) ? a.expenses : [],
+        otherIncome:Array.isArray(a.otherIncome) ? a.otherIncome : [],
+        notes:String(a.notes || "")
+      };
     }
 
     function normalizeLoadedState(obj){
@@ -448,6 +508,7 @@
       next.notes = normalizeNotesState(next.notes);
       if(!Array.isArray(next.contacts)) next.contacts = [];
       next.academy = normalizeAcademyState(next.academy);
+      next.administration = normalizeAdministrationState(next.administration);
       next.updatedAt = next.updatedAt || new Date().toISOString();
       return next;
     }
@@ -460,7 +521,8 @@
         todos:[],
         notes: normalizeNotesState(null),
         contacts:[],
-        academy: normalizeAcademyState(null)
+        academy: normalizeAcademyState(null),
+        administration: normalizeAdministrationState(null)
       };
     }
 
@@ -488,7 +550,7 @@
 
     function roleCanAccess(role, feature){
       if(role === "admin") return true;
-      if(role === "socio") return feature === "calendar" || feature === "today" || feature === "notebook" || feature === "contacts" || feature === "courses" || feature === "students" || feature === "cloud";
+      if(role === "socio") return feature === "calendar" || feature === "today" || feature === "notebook" || feature === "contacts" || feature === "courses" || feature === "students" || feature === "administration" || feature === "cloud";
       if(role === "docente") return feature === "calendar" || feature === "today" || feature === "courses" || feature === "cloud";
       return feature === "calendar" || feature === "today";
     }
@@ -1131,6 +1193,7 @@
     var viewToday = $("#view-today");
     var viewCourses = $("#view-courses");
     var viewStudents = $("#view-students");
+    var viewAdministration = $("#view-administration");
 
     var calListGrid = $("#calListGrid");
 
@@ -1235,6 +1298,47 @@
     var closeStudentBtn = $("#closeStudentBtn");
     var selectedCourseId = null;
 
+    var administrationAcademicYear = $("#administrationAcademicYear");
+    var administrationRoleHint = $("#administrationRoleHint");
+    var administrationExpectedTotal = $("#administrationExpectedTotal");
+    var administrationPaidTotal = $("#administrationPaidTotal");
+    var administrationBalanceTotal = $("#administrationBalanceTotal");
+    var administrationOverdueCount = $("#administrationOverdueCount");
+    var administrationSectionTabs = $("#administrationSectionTabs");
+    var administrationOverviewPanel = $("#administrationOverviewPanel");
+    var administrationFeesPanel = $("#administrationFeesPanel");
+    var administrationDeadlinesPanel = $("#administrationDeadlinesPanel");
+    var administrationCourseSummary = $("#administrationCourseSummary");
+    var administrationSearch = $("#administrationSearch");
+    var administrationCourseFilter = $("#administrationCourseFilter");
+    var administrationStatusFilter = $("#administrationStatusFilter");
+    var administrationFeesMeta = $("#administrationFeesMeta");
+    var administrationFeeList = $("#administrationFeeList");
+    var administrationDeadlineList = $("#administrationDeadlineList");
+    var financeOverlay = $("#financeOverlay");
+    var financeModalCourse = $("#financeModalCourse");
+    var financeModalTitle = $("#financeModalTitle");
+    var financeStudentId = $("#financeStudentId");
+    var financeCourseId = $("#financeCourseId");
+    var financeFeeDisplay = $("#financeFeeDisplay");
+    var financePaidDisplay = $("#financePaidDisplay");
+    var financeBalanceDisplay = $("#financeBalanceDisplay");
+    var financeStatusDisplay = $("#financeStatusDisplay");
+    var financeCourseFee = $("#financeCourseFee");
+    var financeNextDueDate = $("#financeNextDueDate");
+    var financeNextDueNote = $("#financeNextDueNote");
+    var saveFinanceSettingsBtn = $("#saveFinanceSettingsBtn");
+    var financePaymentList = $("#financePaymentList");
+    var financePaymentKind = $("#financePaymentKind");
+    var financePaymentAmount = $("#financePaymentAmount");
+    var financePaymentDate = $("#financePaymentDate");
+    var financePaymentMethod = $("#financePaymentMethod");
+    var financePaymentNote = $("#financePaymentNote");
+    var addFinancePaymentBtn = $("#addFinancePaymentBtn");
+    var closeFinanceBtn = $("#closeFinanceBtn");
+    var administrationActiveSection = null;
+    var administrationFocusStudentId = null;
+
     var todayPrevBtn = $("#todayPrevBtn");
     var todayNextBtn = $("#todayNextBtn");
 
@@ -1251,7 +1355,7 @@
     }
 
     function roleRestrictionMessage(feature){
-      var label = feature === "notebook" ? "Taccuino" : feature === "contacts" ? "Rubrica" : feature === "courses" ? "Corsi" : feature === "students" ? "Studenti" : feature === "settings" ? "Impostazioni" : "Questa area";
+      var label = feature === "notebook" ? "Taccuino" : feature === "contacts" ? "Rubrica" : feature === "courses" ? "Corsi" : feature === "students" ? "Studenti" : feature === "administration" ? "Amministrazione" : feature === "settings" ? "Impostazioni" : "Questa area";
       if(currentAccessRole === "guest") return label + " richiede un account SDAC autorizzato.";
       if(currentAccessRole === "none") return label + " non è disponibile finché all'account non viene assegnato un ruolo SDAC.";
       return label + " non è disponibile per il ruolo " + roleDisplayName(currentAccessRole) + ".";
@@ -1275,6 +1379,7 @@
       var settingsAllowed = canCurrentRoleAccess("settings");
       var coursesAllowed = canCurrentRoleAccess("courses");
       var studentsAllowed = canCurrentRoleAccess("students");
+      var administrationAllowed = canCurrentRoleAccess("administration");
 
       tabs.forEach(function(tab){
         var view = tab.getAttribute("data-view");
@@ -1282,6 +1387,7 @@
         else if(view === "contacts") setRoleLockedElement(tab, !contactsAllowed, roleRestrictionMessage("contacts"));
         else if(view === "courses") setRoleLockedElement(tab, !coursesAllowed, roleRestrictionMessage("courses"));
         else if(view === "students") setRoleLockedElement(tab, !studentsAllowed, roleRestrictionMessage("students"));
+        else if(view === "administration") setRoleLockedElement(tab, !administrationAllowed, roleRestrictionMessage("administration"));
         else setRoleLockedElement(tab, false, "");
       });
 
@@ -1291,11 +1397,12 @@
       var todoPanelCard = todoMiniPanel && todoMiniPanel.closest ? todoMiniPanel.closest(".todoPanelCard") : null;
       if(todoPanelCard) todoPanelCard.classList.toggle("roleFeatureHidden", !notebookAllowed);
 
-      if((currentView === "notebook" && !notebookAllowed) || (currentView === "contacts" && !contactsAllowed) || (currentView === "courses" && !coursesAllowed) || (currentView === "students" && !studentsAllowed)){
+      if((currentView === "notebook" && !notebookAllowed) || (currentView === "contacts" && !contactsAllowed) || (currentView === "courses" && !coursesAllowed) || (currentView === "students" && !studentsAllowed) || (currentView === "administration" && !administrationAllowed)){
         setView("calendar", true);
       }
       if(currentView === "courses") renderCourses();
       if(currentView === "students") renderStudents();
+      if(currentView === "administration") renderAdministration();
     }
 
     function getNotesState(){
@@ -1788,7 +1895,7 @@ wireCollapse(notesListCard);
 wireCollapse(notesEditorCard);
 resetEventForm();
     function setView(view, silent){
-      if((view === "notebook" && !canCurrentRoleAccess("notebook")) || (view === "contacts" && !canCurrentRoleAccess("contacts")) || (view === "courses" && !canCurrentRoleAccess("courses")) || (view === "students" && !canCurrentRoleAccess("students"))){
+      if((view === "notebook" && !canCurrentRoleAccess("notebook")) || (view === "contacts" && !canCurrentRoleAccess("contacts")) || (view === "courses" && !canCurrentRoleAccess("courses")) || (view === "students" && !canCurrentRoleAccess("students")) || (view === "administration" && !canCurrentRoleAccess("administration"))){
         if(!silent) window.alert(roleRestrictionMessage(view));
         return false;
       }
@@ -1800,6 +1907,7 @@ resetEventForm();
       if(viewToday) viewToday.classList.toggle("hidden", view !== "today");
       if(viewCourses) viewCourses.classList.toggle("hidden", view !== "courses");
       if(viewStudents) viewStudents.classList.toggle("hidden", view !== "students");
+      if(viewAdministration) viewAdministration.classList.toggle("hidden", view !== "administration");
 
       if(view === "calendar") renderSummary();
       if(view === "notebook"){
@@ -1810,6 +1918,7 @@ resetEventForm();
       if(view === "today") renderTodayPanel();
       if(view === "courses") renderCourses();
       if(view === "students") renderStudents();
+      if(view === "administration") renderAdministration();
       return true;
     }
 
@@ -3181,6 +3290,55 @@ todoActiveList.appendChild(item);
       return stats;
     }
 
+    function formatEuro(value){
+      var n = Number(value || 0);
+      try{ return new Intl.NumberFormat("it-IT", { style:"currency", currency:"EUR", minimumFractionDigits:Number.isInteger(n)?0:2, maximumFractionDigits:2 }).format(n); }
+      catch(e){ return "€ " + n.toFixed(Number.isInteger(n)?0:2); }
+    }
+
+    function getStudentFinanceEnrollment(student, courseId, create){
+      if(!student) return null;
+      if(!student.finance || typeof student.finance !== "object") student.finance = normalizeStudentFinance(null, student.courseIds || []);
+      if(!student.finance.enrollments || typeof student.finance.enrollments !== "object") student.finance.enrollments = {};
+      var cid = String(courseId || "");
+      if(!student.finance.enrollments[cid] && create) student.finance.enrollments[cid] = normalizeFinanceEnrollment(null, cid);
+      return student.finance.enrollments[cid] || null;
+    }
+
+    function paymentTotal(enrollment){
+      return (enrollment && Array.isArray(enrollment.payments) ? enrollment.payments : []).reduce(function(sum,p){ return sum + Math.max(0, Number(p.amount || 0) || 0); }, 0);
+    }
+
+    function financeStatus(enrollment){
+      var fee = Math.max(0, Number(enrollment && enrollment.courseFee || 0));
+      var paid = paymentTotal(enrollment);
+      var balance = Math.max(0, fee - paid);
+      var today = isoDate(getTodayDate());
+      if(fee > 0 && balance <= 0.009) return { key:"settled", icon:"✅", label:"Saldato" };
+      if(enrollment && enrollment.nextDueDate && enrollment.nextDueDate < today && balance > 0) return { key:"overdue", icon:"🔴", label:"Scaduto" };
+      if(paid <= 0) return { key:"unpaid", icon:"⚪", label:"Da iniziare" };
+      return { key:"ok", icon:"🟢", label:"In regola" };
+    }
+
+    function studentFinanceSummary(student){
+      var total=0,paid=0,balance=0,overdue=false,settledCount=0,count=0;
+      (student.courseIds||[]).forEach(function(cid){
+        var e=getStudentFinanceEnrollment(student,cid,true); if(!e)return; var fee=Number(e.courseFee||0), coursePaid=paymentTotal(e); count++; total+=fee; paid+=coursePaid; balance+=Math.max(0,fee-coursePaid); var status=financeStatus(e); if(status.key==="overdue")overdue=true; if(status.key==="settled")settledCount++;
+      });
+      var key = overdue ? "overdue" : (count && settledCount===count ? "settled" : (paid>0 ? "ok" : "unpaid"));
+      var map={settled:{icon:"✅",label:"Saldato"},overdue:{icon:"🔴",label:"Rata scaduta"},ok:{icon:"🟢",label:"In regola"},unpaid:{icon:"⚪",label:"Da iniziare"}};
+      return {total:total,paid:paid,balance:balance,status:{key:key,icon:map[key].icon,label:map[key].label}};
+    }
+
+    function openAdministrationForStudent(studentId, courseId){
+      if(!canCurrentRoleAccess("administration")){ window.alert(roleRestrictionMessage("administration")); return; }
+      administrationFocusStudentId = studentId || null;
+      administrationActiveSection = "fees";
+      if(administrationSearch){ var st=getStudentById(studentId); administrationSearch.value=st?fullStudentName(st):""; }
+      if(courseId && administrationCourseFilter){ populateAdministrationCourseFilter(); administrationCourseFilter.value=courseId; }
+      setView("administration");
+    }
+
     function renderStudents(){
       if(!studentList || !canCurrentRoleAccess("students")) return;
       populateStudentCourseFilter();
@@ -3190,9 +3348,16 @@ todoActiveList.appendChild(item);
       studentListMeta.textContent=visible.length+" visibili · "+all.length+" totali"; studentList.innerHTML="";
       if(!visible.length){ studentList.innerHTML='<div class="schoolEmptyState">Nessuno studente corrisponde ai filtri.</div>'; return; }
       visible.forEach(function(st){
-        var courses=(st.courseIds||[]).map(getCourseById).filter(Boolean); var stats=attendanceStatsForStudent(st); var card=document.createElement("button"); card.type="button"; card.className="schoolStudentCard";
-        card.innerHTML='<span class="schoolAvatar large">'+escapeHtml((st.firstName||st.lastName||"S").charAt(0).toUpperCase())+'</span><span class="schoolStudentCardMain"><strong>'+escapeHtml(fullStudentName(st))+'</strong><span>'+escapeHtml(st.email||st.phone||"Contatti non inseriti")+'</span><span class="schoolStudentCourses">'+courses.map(function(c){return escapeHtml(c.icon+" "+c.name);}).join(" · ")+'</span></span><span class="schoolStudentAttendance"><strong>'+stats.present+'/'+stats.total+'</strong><span>presenze</span></span>';
-        card.addEventListener("click",function(){openStudentModal(st.id);}); studentList.appendChild(card);
+        var courses=(st.courseIds||[]).map(getCourseById).filter(Boolean); var stats=attendanceStatsForStudent(st); var summary=studentFinanceSummary(st); var card=document.createElement("div"); card.className="schoolStudentCard";
+        var openBtn=document.createElement("button"); openBtn.type="button"; openBtn.className="schoolStudentOpenBtn";
+        openBtn.innerHTML='<span class="schoolAvatar large">'+escapeHtml((st.firstName||st.lastName||"S").charAt(0).toUpperCase())+'</span><span class="schoolStudentCardMain"><strong>'+escapeHtml(fullStudentName(st))+'</strong><span>'+escapeHtml(st.email||st.phone||"Contatti non inseriti")+'</span><span class="schoolStudentCourses">'+courses.map(function(c){return escapeHtml(c.icon+" "+c.name);}).join(" · ")+'</span></span><span class="schoolStudentAttendance"><strong>'+stats.present+'/'+stats.total+'</strong><span>presenze</span></span>';
+        openBtn.addEventListener("click",function(){openStudentModal(st.id);}); card.appendChild(openBtn);
+        if(canCurrentRoleAccess("administration")){
+          var financeBtn=document.createElement("button"); financeBtn.type="button"; financeBtn.className="schoolStudentFinance"; financeBtn.title="Apri la situazione economica in Amministrazione";
+          financeBtn.innerHTML='<span class="schoolFinanceStatus" data-status="'+summary.status.key+'">'+summary.status.icon+' '+escapeHtml(summary.status.label)+'</span><span class="schoolStudentFinanceAmounts">'+escapeHtml(formatEuro(summary.paid))+' / '+escapeHtml(formatEuro(summary.total))+' · residuo '+escapeHtml(formatEuro(summary.balance))+'</span>';
+          financeBtn.addEventListener("click",function(){ openAdministrationForStudent(st.id, filter!=="all"?filter:null); }); card.appendChild(financeBtn);
+        }
+        studentList.appendChild(card);
       });
     }
 
@@ -3204,7 +3369,9 @@ todoActiveList.appendChild(item);
     function renderStudentAttendanceSummary(student){
       if(!studentAttendanceSummary) return; if(!student){ studentAttendanceSummary.innerHTML=""; return; }
       var stats=attendanceStatsForStudent(student); var pct=stats.total ? Math.round((stats.present+stats.late)/stats.total*100) : 0;
-      studentAttendanceSummary.innerHTML='<div class="schoolEyebrow">Presenze registrate</div><div class="schoolAttendanceSummaryGrid"><div><strong>'+stats.present+'</strong><span>Presenti</span></div><div><strong>'+stats.absent+'</strong><span>Assenze</span></div><div><strong>'+stats.late+'</strong><span>Ritardi</span></div><div><strong>'+pct+'%</strong><span>Frequenza</span></div></div>';
+      var financeLink = canCurrentRoleAccess("administration") ? '<div class="studentFinanceModalLink"><button class="btn" id="studentOpenAdministrationBtn" type="button">💼 Apri situazione economica</button></div>' : '';
+      studentAttendanceSummary.innerHTML='<div class="schoolEyebrow">Presenze registrate</div><div class="schoolAttendanceSummaryGrid"><div><strong>'+stats.present+'</strong><span>Presenti</span></div><div><strong>'+stats.absent+'</strong><span>Assenze</span></div><div><strong>'+stats.late+'</strong><span>Ritardi</span></div><div><strong>'+pct+'%</strong><span>Frequenza</span></div></div>'+financeLink;
+      var financeBtn=studentAttendanceSummary.querySelector("#studentOpenAdministrationBtn"); if(financeBtn) financeBtn.addEventListener("click",function(){ closeStudentModal(); openAdministrationForStudent(student.id,null); });
     }
 
     function openStudentModal(id){
@@ -3225,6 +3392,142 @@ todoActiveList.appendChild(item);
       getAcademyYear().students=getAcademyYear().students.filter(function(x){return x.id!==id;}); (getAcademyYear().courses||[]).forEach(function(c){(c.lessons||[]).forEach(function(l){if(l.attendance)delete l.attendance[id];});}); touchAndSave(); closeStudentModal(); renderStudents(); renderCourses(); if(selectedCourseId) renderCourseDetail();
     }
 
+    function populateAdministrationCourseFilter(){
+      if(!administrationCourseFilter) return;
+      var current=administrationCourseFilter.value||"all";
+      administrationCourseFilter.innerHTML='<option value="all">Tutti i corsi</option>';
+      (getAcademyYear().courses||[]).forEach(function(c){ var o=document.createElement("option"); o.value=c.id; o.textContent=c.name; administrationCourseFilter.appendChild(o); });
+      administrationCourseFilter.value=Array.prototype.some.call(administrationCourseFilter.options,function(o){return o.value===current;})?current:"all";
+    }
+
+    function financeEntries(){
+      var entries=[];
+      (getAcademyYear().students||[]).forEach(function(st){
+        (st.courseIds||[]).forEach(function(cid){
+          var course=getCourseById(cid); if(!course)return;
+          var enrollment=getStudentFinanceEnrollment(st,cid,true);
+          entries.push({student:st,course:course,enrollment:enrollment,paid:paymentTotal(enrollment),fee:Number(enrollment.courseFee||0),status:financeStatus(enrollment)});
+        });
+      });
+      entries.forEach(function(e){ e.balance=Math.max(0,e.fee-e.paid); });
+      return entries;
+    }
+
+    function renderAdministrationStats(entries){
+      var total=0,paid=0,balance=0,overdue=0;
+      entries.forEach(function(e){total+=e.fee;paid+=e.paid;balance+=e.balance;if(e.status.key==="overdue")overdue++;});
+      if(administrationExpectedTotal) administrationExpectedTotal.textContent=formatEuro(total);
+      if(administrationPaidTotal) administrationPaidTotal.textContent=formatEuro(paid);
+      if(administrationBalanceTotal) administrationBalanceTotal.textContent=formatEuro(balance);
+      if(administrationOverdueCount) administrationOverdueCount.textContent=String(overdue);
+    }
+
+    function setAdministrationSection(section){
+      if(currentAccessRole === "socio" && section === "overview") section="fees";
+      if(section !== "overview" && section !== "fees" && section !== "deadlines") section="fees";
+      administrationActiveSection=section;
+      if(administrationSectionTabs) Array.prototype.forEach.call(administrationSectionTabs.querySelectorAll("[data-admin-section]"),function(btn){btn.classList.toggle("active",btn.getAttribute("data-admin-section")===section);});
+      if(administrationOverviewPanel) administrationOverviewPanel.classList.toggle("hidden",section!=="overview");
+      if(administrationFeesPanel) administrationFeesPanel.classList.toggle("hidden",section!=="fees");
+      if(administrationDeadlinesPanel) administrationDeadlinesPanel.classList.toggle("hidden",section!=="deadlines");
+    }
+
+    function renderAdministrationOverview(entries){
+      if(!administrationCourseSummary)return;
+      administrationCourseSummary.innerHTML="";
+      (getAcademyYear().courses||[]).forEach(function(course){
+        var list=entries.filter(function(e){return e.course.id===course.id;}); var total=0,paid=0,balance=0; list.forEach(function(e){total+=e.fee;paid+=e.paid;balance+=e.balance;}); var pct=total?Math.min(100,Math.round(paid/total*100)):0;
+        var card=document.createElement("div"); card.className="administrationCourseCard";
+        card.innerHTML='<div class="administrationCourseCardHead"><strong>'+escapeHtml(course.icon+" "+course.name)+'</strong><span>'+list.length+' iscritti</span></div><div class="administrationCourseProgress"><i style="width:'+pct+'%"></i></div><div class="administrationCourseTotals"><span>'+escapeHtml(formatEuro(paid))+' incassati</span><span>'+escapeHtml(formatEuro(balance))+' residui</span></div>';
+        administrationCourseSummary.appendChild(card);
+      });
+    }
+
+    function dueDescription(entry){
+      if(!entry.enrollment.nextDueDate || entry.balance<=0) return "Nessuna scadenza impostata";
+      var overdue=entry.enrollment.nextDueDate<isoDate(getTodayDate());
+      return (overdue?"Scaduta ":"Scadenza ")+formatSchoolDate(entry.enrollment.nextDueDate);
+    }
+
+    function renderAdministrationFees(entries){
+      if(!administrationFeeList)return;
+      populateAdministrationCourseFilter();
+      var q=String(administrationSearch&&administrationSearch.value||"").trim().toLowerCase();
+      var courseFilter=administrationCourseFilter?administrationCourseFilter.value:"all";
+      var statusFilter=administrationStatusFilter?administrationStatusFilter.value:"all";
+      var visible=entries.filter(function(e){
+        if(courseFilter!=="all"&&e.course.id!==courseFilter)return false;
+        if(statusFilter!=="all"&&e.status.key!==statusFilter)return false;
+        if(!q)return true;
+        return (fullStudentName(e.student)+" "+e.course.name+" "+e.student.email).toLowerCase().indexOf(q)!==-1;
+      }).sort(function(a,b){return fullStudentName(a.student).localeCompare(fullStudentName(b.student),"it")||a.course.name.localeCompare(b.course.name,"it");});
+      if(administrationFeesMeta) administrationFeesMeta.textContent=visible.length+" iscrizioni visibili · "+entries.length+" totali";
+      administrationFeeList.innerHTML="";
+      if(!visible.length){administrationFeeList.innerHTML='<div class="schoolEmptyState">Nessuna quota corrisponde ai filtri.</div>';return;}
+      visible.forEach(function(e){
+        var row=document.createElement("div"); row.className="administrationFeeRow";
+        var due=e.enrollment.nextDueDate&&e.balance>0?dueDescription(e):""; var dueClass=e.status.key==="overdue"?" overdue":"";
+        row.innerHTML='<div class="administrationFeePerson"><strong>'+escapeHtml(fullStudentName(e.student))+'</strong><span>'+escapeHtml(e.course.icon+" "+e.course.name)+'</span></div><div class="administrationAmounts"><span>Quota<strong>'+escapeHtml(formatEuro(e.fee))+'</strong></span><span>Pagato<strong>'+escapeHtml(formatEuro(e.paid))+'</strong></span><span>Residuo<strong>'+escapeHtml(formatEuro(e.balance))+'</strong></span></div><div class="administrationStatusArea"><span class="financeStatusBadge" data-status="'+e.status.key+'">'+e.status.icon+' '+escapeHtml(e.status.label)+'</span>'+(due?'<span class="administrationDueText'+dueClass+'">'+escapeHtml(due)+'</span>':'')+'</div><button class="btn" type="button">Apri</button>';
+        row.querySelector("button").addEventListener("click",function(){openFinanceModal(e.student.id,e.course.id);}); administrationFeeList.appendChild(row);
+      });
+    }
+
+    function renderAdministrationDeadlines(entries){
+      if(!administrationDeadlineList)return;
+      var list=entries.filter(function(e){return e.balance>0&&e.enrollment.nextDueDate;}).sort(function(a,b){return a.enrollment.nextDueDate.localeCompare(b.enrollment.nextDueDate);});
+      administrationDeadlineList.innerHTML="";
+      if(!list.length){administrationDeadlineList.innerHTML='<div class="schoolEmptyState">Nessuna prossima scadenza impostata. Puoi aggiungerla nella scheda economica dello studente senza indicare un importo.</div>';return;}
+      list.forEach(function(e){
+        var overdue=e.enrollment.nextDueDate<isoDate(getTodayDate()); var row=document.createElement("div"); row.className="administrationDeadlineRow";
+        row.innerHTML='<div class="administrationDeadlineDate"><strong>'+escapeHtml(formatSchoolDate(e.enrollment.nextDueDate))+'</strong><span>'+(overdue?'🔴 Scaduta':'🟡 Da seguire')+'</span></div><div class="administrationDeadlineMain"><strong>'+escapeHtml(fullStudentName(e.student))+' · '+escapeHtml(e.course.name)+'</strong><span>'+escapeHtml(e.enrollment.nextDueNote||("Residuo "+formatEuro(e.balance)))+'</span></div><button class="btn" type="button">Apri</button>';
+        row.querySelector("button").addEventListener("click",function(){openFinanceModal(e.student.id,e.course.id);}); administrationDeadlineList.appendChild(row);
+      });
+    }
+
+    function renderAdministration(){
+      if(!viewAdministration||!canCurrentRoleAccess("administration"))return;
+      if(administrationAcademicYear)administrationAcademicYear.textContent=state.academy&&state.academy.activeYear||ACADEMIC_YEAR;
+      if(administrationRoleHint)administrationRoleHint.textContent=currentAccessRole==="socio"?"Gestisci quote, pagamenti e scadenze degli studenti. Le future voci generali della scuola resteranno riservate all'Admin.":"Quote studenti oggi; in futuro qui confluiranno spese, altre entrate e bilancio della scuola.";
+      if(!administrationActiveSection) administrationActiveSection=currentAccessRole==="admin"?"overview":"fees";
+      if(currentAccessRole==="socio"&&administrationActiveSection==="overview")administrationActiveSection="fees";
+      var entries=financeEntries(); renderAdministrationStats(entries); renderAdministrationOverview(entries); renderAdministrationFees(entries); renderAdministrationDeadlines(entries); setAdministrationSection(administrationActiveSection);
+    }
+
+    function refreshFinanceModal(){
+      if(!financeStudentId||!financeCourseId)return;
+      var st=getStudentById(financeStudentId.value), course=getCourseById(financeCourseId.value); if(!st||!course)return;
+      var e=getStudentFinanceEnrollment(st,course.id,true); var paid=paymentTotal(e), fee=Number(e.courseFee||0), balance=Math.max(0,fee-paid), status=financeStatus(e);
+      financeModalTitle.textContent=fullStudentName(st); financeModalCourse.textContent=course.icon+" "+course.name;
+      financeFeeDisplay.textContent=formatEuro(fee); financePaidDisplay.textContent=formatEuro(paid); financeBalanceDisplay.textContent=formatEuro(balance); financeStatusDisplay.textContent=status.icon+" "+status.label; financeStatusDisplay.setAttribute("data-status",status.key);
+      financeCourseFee.value=String(fee); financeNextDueDate.value=e.nextDueDate||""; financeNextDueNote.value=e.nextDueNote||"";
+      financePaymentList.innerHTML="";
+      var payments=(e.payments||[]).slice().sort(function(a,b){return String(b.date||b.createdAt).localeCompare(String(a.date||a.createdAt));});
+      if(!payments.length)financePaymentList.innerHTML="<div class=\"schoolEmptyState compact\">Nessun pagamento registrato. L'acconto standard è 300 €, ma puoi registrare l'importo realmente versato.</div>";
+      payments.forEach(function(p){
+        var row=document.createElement("div"); row.className="financePaymentRow"; var kind=p.kind==="deposit"?"Acconto":"Pagamento";
+        row.innerHTML='<span class="financePaymentKind">'+kind+'</span><span class="financePaymentAmount">'+escapeHtml(formatEuro(p.amount))+'</span><span class="financePaymentMeta"><span>'+escapeHtml(p.date?formatSchoolDate(p.date):"Data non indicata")+(p.method?' · '+escapeHtml(p.method):'')+'</span>'+(p.note?'<span>'+escapeHtml(p.note)+'</span>':'')+'</span><button class="smallBtn danger" type="button" title="Elimina pagamento">Elimina</button>';
+        row.querySelector("button").addEventListener("click",function(){ if(!canMutateSchoolData())return; if(!confirm("Eliminare questo pagamento di "+formatEuro(p.amount)+"?"))return; e.payments=e.payments.filter(function(x){return x.id!==p.id;}); touchAndSave(); refreshFinanceModal(); renderAdministration(); renderStudents(); });
+        financePaymentList.appendChild(row);
+      });
+      var noPayments=!(e.payments||[]).length; financePaymentKind.value=noPayments?"deposit":"payment"; if(noPayments&&!financePaymentAmount.value)financePaymentAmount.value="300";
+    }
+
+    function openFinanceModal(studentId,courseId){
+      if(!canCurrentRoleAccess("administration"))return;
+      var st=getStudentById(studentId),course=getCourseById(courseId);if(!st||!course)return;
+      financeStudentId.value=st.id;financeCourseId.value=course.id;financePaymentAmount.value="";financePaymentDate.value=isoDate(getTodayDate());financePaymentMethod.value="";financePaymentNote.value="";
+      financeOverlay.style.display="flex";financeOverlay.classList.add("open");financeOverlay.setAttribute("aria-hidden","false");refreshFinanceModal();
+    }
+    function closeFinanceModal(){if(!financeOverlay)return;financeOverlay.style.display="none";financeOverlay.classList.remove("open");financeOverlay.setAttribute("aria-hidden","true");}
+    function saveFinanceSettings(){
+      if(!canCurrentRoleAccess("administration")||!canMutateSchoolData())return;
+      var st=getStudentById(financeStudentId.value),course=getCourseById(financeCourseId.value);if(!st||!course)return;var e=getStudentFinanceEnrollment(st,course.id,true);var fee=Number(financeCourseFee.value);if(!Number.isFinite(fee)||fee<0){alert("Inserisci una quota corso valida.");return;}e.courseFee=fee;e.nextDueDate=String(financeNextDueDate.value||"").slice(0,10);e.nextDueNote=String(financeNextDueNote.value||"").trim();st.updatedAt=new Date().toISOString();touchAndSave();refreshFinanceModal();renderAdministration();renderStudents();
+    }
+    function addFinancePayment(){
+      if(!canCurrentRoleAccess("administration")||!canMutateSchoolData())return;
+      var st=getStudentById(financeStudentId.value),course=getCourseById(financeCourseId.value);if(!st||!course)return;var e=getStudentFinanceEnrollment(st,course.id,true);var amount=Number(financePaymentAmount.value);if(!Number.isFinite(amount)||amount<=0){alert("Inserisci l'importo realmente pagato.");return;}e.payments.push(normalizeFinancePayment({kind:financePaymentKind.value,amount:amount,date:financePaymentDate.value||isoDate(getTodayDate()),method:financePaymentMethod.value,note:financePaymentNote.value}));st.updatedAt=new Date().toISOString();financePaymentAmount.value="";financePaymentNote.value="";financePaymentKind.value="payment";touchAndSave();refreshFinanceModal();renderAdministration();renderStudents();
+    }
+
     function renderAll(){
       renderCalendar();
       renderTodos();
@@ -3234,6 +3537,7 @@ todoActiveList.appendChild(item);
       renderTodayPanel();
       renderCourses();
       renderStudents();
+      renderAdministration();
     }
 
     // Wire
@@ -3282,7 +3586,8 @@ todoActiveList.appendChild(item);
         return;
       }
       if(window.AgendaAccount && window.AgendaAccount.isOpen && window.AgendaAccount.isOpen()) return;
-      if(studentOverlay && studentOverlay.style.display === "flex") closeStudentModal();
+      if(financeOverlay && financeOverlay.style.display === "flex") closeFinanceModal();
+      else if(studentOverlay && studentOverlay.style.display === "flex") closeStudentModal();
       else if(contactOverlay && contactOverlay.style.display === "flex") closeContactModal();
       else closeDay();
     });
@@ -3381,6 +3686,16 @@ todoActiveList.appendChild(item);
     if(deleteStudentBtn) deleteStudentBtn.addEventListener("click", deleteStudent);
     if(closeStudentBtn) closeStudentBtn.addEventListener("click", closeStudentModal);
     if(studentOverlay) studentOverlay.addEventListener("click", function(ev){ if(ev.target===studentOverlay) closeStudentModal(); });
+
+    if(administrationSectionTabs) administrationSectionTabs.addEventListener("click",function(ev){ var btn=ev.target.closest&&ev.target.closest("[data-admin-section]");if(!btn||btn.disabled)return;setAdministrationSection(btn.getAttribute("data-admin-section")); });
+    if(administrationSearch) administrationSearch.addEventListener("input",function(){administrationFocusStudentId=null;renderAdministration();});
+    if(administrationCourseFilter) administrationCourseFilter.addEventListener("change",renderAdministration);
+    if(administrationStatusFilter) administrationStatusFilter.addEventListener("change",renderAdministration);
+    if(closeFinanceBtn) closeFinanceBtn.addEventListener("click",closeFinanceModal);
+    if(financeOverlay) financeOverlay.addEventListener("click",function(ev){if(ev.target===financeOverlay)closeFinanceModal();});
+    if(saveFinanceSettingsBtn) saveFinanceSettingsBtn.addEventListener("click",saveFinanceSettings);
+    if(addFinancePaymentBtn) addFinancePaymentBtn.addEventListener("click",addFinancePayment);
+    if(financePaymentKind) financePaymentKind.addEventListener("change",function(){if(financePaymentKind.value==="deposit"&&!financePaymentAmount.value)financePaymentAmount.value="300";});
 
     // Init
     applyTheme(getSavedTheme(), false);

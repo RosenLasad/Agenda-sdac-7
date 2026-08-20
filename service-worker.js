@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-agenda-shell-v11-corsi-studenti";
+const CACHE_NAME = "sdac-agenda-shell-v12-amministrazione";
 
 const APP_SHELL = [
   "./",

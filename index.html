@@ -315,6 +315,18 @@
             </span>
             <span class="tabText">Studenti</span>
           </div>
+          <div class="tab bookmarkTab bookmarkTab--administration schoolRoleTab" data-view="administration" role="button" tabindex="0" aria-label="Amministrazione" title="Amministrazione">
+            <span class="tabPin" aria-hidden="true"></span>
+            <span class="tabIcon" aria-hidden="true">
+              <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                <rect x="3.5" y="7" width="17" height="12.5" rx="2.5"></rect>
+                <path d="M8 7V5.5C8 4.7 8.7 4 9.5 4h5c.8 0 1.5.7 1.5 1.5V7"></path>
+                <path d="M3.5 11.5h17"></path>
+                <path d="M12 10v3"></path>
+              </svg>
+            </span>
+            <span class="tabText">Amministr.</span>
+          </div>
         </div>
       </div>
     </header>
@@ -680,7 +692,7 @@
             <div>
               <div class="schoolEyebrow">Anno accademico</div>
               <h2 class="schoolHeroTitle">Studenti <span id="studentsAcademicYear">2026/2027</span></h2>
-              <div class="hint">Anagrafica e iscrizioni. La parte economica è già prevista nei dati ma verrà sviluppata più avanti.</div>
+              <div class="hint">Anagrafica e iscrizioni. Admin e Socio vedono qui un riepilogo economico rapido e possono aprire il dettaglio in Amministrazione.</div>
             </div>
             <button class="btn primary" id="addStudentBtn" type="button">+ Nuovo studente</button>
           </div>
@@ -701,6 +713,132 @@
       </div>
     </section>
 
+    <!-- Administration view -->
+    <section id="view-administration" class="hidden schoolView administrationView">
+      <div class="schoolStack">
+        <div class="card schoolHeroCard administrationHeroCard">
+          <div class="cardBody schoolHeroBody">
+            <div>
+              <div class="schoolEyebrow">Gestione economica</div>
+              <h2 class="schoolHeroTitle">Amministrazione <span id="administrationAcademicYear">2026/2027</span></h2>
+              <div class="hint" id="administrationRoleHint">Quote studenti, pagamenti e scadenze.</div>
+            </div>
+            <div class="administrationHeroStats">
+              <div class="schoolStat"><strong id="administrationExpectedTotal">€ 0</strong><span>Quote</span></div>
+              <div class="schoolStat"><strong id="administrationPaidTotal">€ 0</strong><span>Incassato</span></div>
+              <div class="schoolStat"><strong id="administrationBalanceTotal">€ 0</strong><span>Residuo</span></div>
+              <div class="schoolStat"><strong id="administrationOverdueCount">0</strong><span>Scadute</span></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="administrationSectionTabs" id="administrationSectionTabs" aria-label="Sezioni amministrazione">
+          <button class="administrationSectionTab adminOnlySection" type="button" data-admin-section="overview">Panoramica</button>
+          <button class="administrationSectionTab active" type="button" data-admin-section="fees">Quote studenti</button>
+          <button class="administrationSectionTab" type="button" data-admin-section="deadlines">Scadenze</button>
+          <button class="administrationSectionTab future adminOnlySection" type="button" data-admin-section="expenses" disabled>Spese <small>più avanti</small></button>
+          <button class="administrationSectionTab future adminOnlySection" type="button" data-admin-section="income" disabled>Altre entrate <small>più avanti</small></button>
+          <button class="administrationSectionTab future adminOnlySection" type="button" data-admin-section="balance" disabled>Bilancio <small>più avanti</small></button>
+        </div>
+
+        <div class="administrationPanel hidden" id="administrationOverviewPanel">
+          <div class="schoolSectionHead">
+            <div><div class="schoolEyebrow">Panoramica Admin</div><h2>Quote per corso</h2></div>
+            <div class="hint">Le future spese e altre entrate confluiranno qui senza mescolarsi ai dati degli studenti.</div>
+          </div>
+          <div class="administrationCourseSummary" id="administrationCourseSummary"></div>
+        </div>
+
+        <div class="administrationPanel" id="administrationFeesPanel">
+          <div class="card schoolFiltersCard">
+            <div class="cardBody administrationFilterRow">
+              <div class="field"><label>Cerca</label><input id="administrationSearch" type="search" placeholder="Studente, corso..."></div>
+              <div class="field"><label>Corso</label><select id="administrationCourseFilter"><option value="all">Tutti i corsi</option></select></div>
+              <div class="field"><label>Stato</label><select id="administrationStatusFilter"><option value="all">Tutti</option><option value="settled">Saldati</option><option value="ok">In regola / parziali</option><option value="unpaid">Da iniziare</option><option value="overdue">Scaduti</option></select></div>
+            </div>
+          </div>
+          <div class="schoolSectionHead">
+            <div><div class="schoolEyebrow">Quote studenti</div><h2>Situazione pagamenti</h2></div>
+            <div class="hint" id="administrationFeesMeta">Nessuna iscrizione</div>
+          </div>
+          <div class="administrationFeeList" id="administrationFeeList"></div>
+        </div>
+
+        <div class="administrationPanel hidden" id="administrationDeadlinesPanel">
+          <div class="schoolSectionHead">
+            <div><div class="schoolEyebrow">Scadenze</div><h2>Prossimi pagamenti da seguire</h2></div>
+            <div class="hint">La scadenza è facoltativa e non impone un importo: serve solo come promemoria.</div>
+          </div>
+          <div class="administrationDeadlineList" id="administrationDeadlineList"></div>
+        </div>
+      </div>
+    </section>
+
+  </div>
+
+  <!-- Finance modal -->
+  <div class="overlay" id="financeOverlay" role="dialog" aria-modal="true" aria-hidden="true">
+    <div class="modal financeModal">
+      <div class="modalHeader">
+        <div>
+          <div class="schoolEyebrow" id="financeModalCourse">Corso</div>
+          <h3 id="financeModalTitle">Situazione economica</h3>
+        </div>
+        <button class="btn" id="closeFinanceBtn" type="button">Chiudi</button>
+      </div>
+      <div class="modalBody financeModalBody">
+        <input id="financeStudentId" type="hidden">
+        <input id="financeCourseId" type="hidden">
+
+        <div class="financeSummaryGrid">
+          <div><span>Quota corso</span><strong id="financeFeeDisplay">€ 0</strong></div>
+          <div><span>Pagato</span><strong id="financePaidDisplay">€ 0</strong></div>
+          <div><span>Residuo</span><strong id="financeBalanceDisplay">€ 0</strong></div>
+          <div><span>Stato</span><strong class="financeStatusBadge" id="financeStatusDisplay">—</strong></div>
+        </div>
+
+        <div class="financeSettingsGrid">
+          <div class="field">
+            <label>Quota totale del corso</label>
+            <input id="financeCourseFee" type="number" min="0" step="1" inputmode="decimal">
+            <div class="hint">Precompilata dal corso; modificabile per sconti o accordi particolari.</div>
+          </div>
+          <div class="field">
+            <label>Prossima scadenza (facoltativa)</label>
+            <input id="financeNextDueDate" type="date">
+            <div class="hint">Nessun importo previsto: lo studente può pagare la cifra concordata al momento.</div>
+          </div>
+          <div class="field financeWideField">
+            <label>Nota scadenza / amministrativa</label>
+            <input id="financeNextDueNote" type="text" placeholder="Es: ricontattare a dicembre, saldo entro fine corso...">
+          </div>
+          <div class="financeSettingsActions financeWideField">
+            <button class="btn" id="saveFinanceSettingsBtn" type="button">Salva quota e scadenza</button>
+          </div>
+        </div>
+
+        <div class="divider"></div>
+        <div class="schoolSectionHead financeSectionHead">
+          <div><div class="schoolEyebrow">Movimenti</div><h2>Pagamenti registrati</h2></div>
+          <div class="hint">L'acconto standard è 300 €, compreso nella quota totale.</div>
+        </div>
+        <div class="financePaymentList" id="financePaymentList"></div>
+
+        <div class="card schoolInnerCard financeAddCard">
+          <div class="cardHeader"><h2>Registra pagamento</h2></div>
+          <div class="cardBody">
+            <div class="financePaymentForm">
+              <div class="field"><label>Tipo</label><select id="financePaymentKind"><option value="deposit">Acconto</option><option value="payment">Pagamento / rata</option></select></div>
+              <div class="field"><label>Importo</label><input id="financePaymentAmount" type="number" min="0.01" step="0.01" inputmode="decimal" placeholder="300"></div>
+              <div class="field"><label>Data</label><input id="financePaymentDate" type="date"></div>
+              <div class="field"><label>Metodo (facoltativo)</label><select id="financePaymentMethod"><option value="">—</option><option value="Bonifico">Bonifico</option><option value="Contanti">Contanti</option><option value="Carta/POS">Carta / POS</option><option value="Altro">Altro</option></select></div>
+              <div class="field financeWideField"><label>Nota</label><input id="financePaymentNote" type="text" placeholder="Nota facoltativa sul pagamento"></div>
+              <div class="financeWideField"><button class="btn primary" id="addFinancePaymentBtn" type="button">Registra pagamento</button></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Student modal -->

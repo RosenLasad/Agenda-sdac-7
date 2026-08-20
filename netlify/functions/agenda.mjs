@@ -113,7 +113,7 @@ function projectAcademyForTeacher(academy, email) {
         phone: "",
         notes: "",
         courseIds: (Array.isArray(st.courseIds) ? st.courseIds : []).filter((id) => ids.has(String(id))),
-        finance: { totalFee:0, paid:0, installments:[], notes:"" },
+        finance: { enrollments:{} },
         createdAt: st.createdAt || null,
         updatedAt: st.updatedAt || null
       }));
@@ -145,7 +145,14 @@ function mergeAcademyForTeacher(existingAcademy, incomingAcademy, email) {
 
 function projectStateForRole(data, role, user) {
   if (!data || typeof data !== "object") return null;
-  if (role === "admin" || role === "socio") return cloneJson(data);
+  if (role === "admin") return cloneJson(data);
+  if (role === "socio") {
+    const projected = cloneJson(data);
+    // Il Socio gestisce quote/pagamenti degli studenti, ma non riceve
+    // le future voci amministrative generali (spese, altre entrate, bilancio).
+    projected.administration = { expenses: [], otherIncome: [], notes: "" };
+    return projected;
+  }
 
   return {
     version: data.version || "v1-notes",
@@ -170,7 +177,15 @@ function mergeStateForRole(existing, incoming, role, user) {
   const current = existing && typeof existing === "object" ? cloneJson(existing) : {};
   const payload = incoming && typeof incoming === "object" ? cloneJson(incoming) : {};
 
-  if (role === "admin" || role === "socio") return payload;
+  if (role === "admin") return payload;
+  if (role === "socio") {
+    return {
+      ...payload,
+      // Anche se il client del Socio invia un campo administration vuoto,
+      // il server conserva sempre i dati generali riservati all'Admin.
+      administration: cloneJson(current.administration || { expenses: [], otherIncome: [], notes: "" })
+    };
+  }
 
   // Il Docente puo modificare il Calendario, ma non puo leggere o
   // sovrascrivere Taccuino, Rubrica o future aree amministrative.
