@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-agenda-shell-v17-cloud-role-inline";
+const CACHE_NAME = "sdac-agenda-shell-v18-mobile-back-navigation";
 
 const APP_SHELL = [
   "./",

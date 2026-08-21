@@ -664,6 +664,110 @@
     var currentView = "calendar";
     var currentAccessRole = getCurrentAccessRole();
 
+    // --- Navigazione interna / tasto Indietro mobile ---
+    // Le sotto-pagine e i modali aggiungono un livello alla history del browser.
+    // In una PWA Android il tasto fisico Indietro genera lo stesso popstate,
+    // quindi chiude prima il livello interno piu recente invece di uscire dall'app.
+    var INTERNAL_NAV_STATE_KEY = "sdacAgendaNav";
+    var internalNavStack = [];
+    var internalNavBackPending = false;
+    var internalNavAfterPop = null;
+
+    function internalNavState(depth, kind){
+      var next = {};
+      try{ Object.assign(next, window.history.state || {}); }catch(e){}
+      next[INTERNAL_NAV_STATE_KEY] = {
+        depth: Math.max(0, Number(depth) || 0),
+        kind: kind || "base",
+        view: currentView || "calendar"
+      };
+      return next;
+    }
+
+    function replaceInternalNavState(){
+      if(internalNavBackPending) return;
+      try{
+        var top = internalNavStack.length ? internalNavStack[internalNavStack.length - 1] : null;
+        window.history.replaceState(internalNavState(internalNavStack.length, top ? top.kind : "base"), "");
+      }catch(e){}
+    }
+
+    function initInternalNavigation(){
+      try{
+        window.history.replaceState(internalNavState(0, "base"), "");
+      }catch(e){}
+    }
+
+    function pushInternalNavLayer(kind, closeDirect){
+      if(!kind || typeof closeDirect !== "function") return;
+      var top = internalNavStack.length ? internalNavStack[internalNavStack.length - 1] : null;
+      if(top && top.kind === kind) return;
+      var layer = { kind:kind, closeDirect:closeDirect };
+      internalNavStack.push(layer);
+      try{ window.history.pushState(internalNavState(internalNavStack.length, kind), ""); }catch(e){}
+    }
+
+    function closeInternalNavLayer(kind, closeDirect){
+      if(typeof closeDirect === "function") closeDirect();
+      var top = internalNavStack.length ? internalNavStack[internalNavStack.length - 1] : null;
+      if(top && top.kind === kind && !internalNavBackPending){
+        internalNavBackPending = true;
+        try{ window.history.back(); }catch(e){ internalNavBackPending = false; }
+      }
+    }
+
+    function abandonInternalLayers(afterClose){
+      var depth = internalNavStack.length;
+      if(!depth){
+        if(typeof afterClose === "function") afterClose();
+        return;
+      }
+      if(internalNavBackPending){
+        internalNavAfterPop = function(){ abandonInternalLayers(afterClose); };
+        return;
+      }
+      var layers = internalNavStack.slice().reverse();
+      internalNavStack.length = 0;
+      layers.forEach(function(layer){ try{ layer.closeDirect(); }catch(e){} });
+      internalNavAfterPop = typeof afterClose === "function" ? afterClose : null;
+      internalNavBackPending = true;
+      try{ window.history.go(-depth); }catch(e){
+        internalNavBackPending = false;
+        var fallback = internalNavAfterPop;
+        internalNavAfterPop = null;
+        if(fallback) fallback();
+      }
+    }
+
+    function navigateMainView(view){
+      if(internalNavStack.length || internalNavBackPending){
+        abandonInternalLayers(function(){ setView(view); });
+        return true;
+      }
+      return setView(view);
+    }
+
+    window.addEventListener("popstate", function(ev){
+      internalNavBackPending = false;
+      var nav = ev && ev.state && ev.state[INTERNAL_NAV_STATE_KEY];
+      var targetDepth = nav && Number.isFinite(Number(nav.depth)) ? Math.max(0, Number(nav.depth)) : 0;
+
+      // Back: chiudi tutti i livelli che non appartengono piu allo stato raggiunto.
+      while(internalNavStack.length > targetDepth){
+        var layer = internalNavStack.pop();
+        try{ layer.closeDirect(); }catch(e){}
+      }
+
+      // Il tasto Avanti non deve riaprire modali con dati potenzialmente obsoleti:
+      // normalizziamo semplicemente lo stato sulla UI attualmente visibile.
+      if(targetDepth > internalNavStack.length) targetDepth = internalNavStack.length;
+
+      var afterPop = internalNavAfterPop;
+      internalNavAfterPop = null;
+      if(afterPop) afterPop();
+      if(!internalNavBackPending) replaceInternalNavState();
+    });
+
     // --- Cloud sync (Netlify Identity + Functions + Blobs) ---
     var remoteSaveTimer = null;
     var remotePullTimer = null;
@@ -1964,6 +2068,7 @@ resetEventForm();
       if(view === "courses") renderCourses();
       if(view === "students") renderStudents();
       if(view === "administration") renderAdministration();
+      if(!internalNavStack.length) replaceInternalNavState();
       return true;
     }
 
@@ -2039,17 +2144,22 @@ function openContactModal(contactId){
 
   contactOverlay.style.display = "flex";
   contactOverlay.setAttribute("aria-hidden", "false");
+  pushInternalNavLayer("contact", closeContactModalDirect);
 
   setTimeout(function(){
     try{ contactName.focus(); }catch(e){}
   }, 30);
 }
 
-function closeContactModal(){
+function closeContactModalDirect(){
   if(!contactOverlay) return;
   contactOverlay.style.display = "none";
   contactOverlay.setAttribute("aria-hidden", "true");
   editingContactId = null;
+}
+
+function closeContactModal(){
+  closeInternalNavLayer("contact", closeContactModalDirect);
 }
 
 function saveContact(){
@@ -2459,14 +2569,19 @@ setCollapsed(eventsCard, false);    // Eventi aperto
       renderDayEvents();
       overlay.style.display = "flex";
       overlay.setAttribute("aria-hidden","false");
+      pushInternalNavLayer("day", closeDayDirect);
 setTimeout(function(){ try{ btnCloseDay.focus(); }catch(e){} }, 30);
     }
 
-    function closeDay(){
+    function closeDayDirect(){
       overlay.style.display = "none";
       overlay.setAttribute("aria-hidden","true");
       selectedISO = null;
       resetEventForm();
+    }
+
+    function closeDay(){
+      closeInternalNavLayer("day", closeDayDirect);
     }
 
     function renderDayEvents(){
@@ -3194,11 +3309,27 @@ todoActiveList.appendChild(item);
         card.innerHTML = '<span class="schoolCourseIcon">'+escapeHtml(course.icon || "🎓")+'</span>'+
           '<span class="schoolCourseCardMain"><strong>'+escapeHtml(course.name)+'</strong><span>'+escapeHtml(weekdayLabel(course.weekday))+" · "+escapeHtml(course.startTime)+"–"+escapeHtml(course.endTime)+'</span><span class="schoolCourseTeacher">'+escapeHtml(course.teacherName || "Docente da configurare")+'</span></span>'+
           '<span class="schoolCourseCardSide"><strong>'+students.length+'</strong><span>iscritti</span><small>'+(next ? "Prossima: "+escapeHtml(formatSchoolDate(next.date)) : "Registro vuoto")+'</small></span>';
-        card.addEventListener("click", function(){ selectedCourseId = course.id; renderCourses(); renderCourseDetail(); });
+        card.addEventListener("click", function(){
+          var detailWasOpen = !!(selectedCourseId && courseDetailCard && !courseDetailCard.classList.contains("hidden"));
+          selectedCourseId = course.id;
+          renderCourses();
+          renderCourseDetail();
+          if(!detailWasOpen) pushInternalNavLayer("course", closeCourseDetailDirect);
+        });
         courseGrid.appendChild(card);
       });
       if(selectedCourseId && !getCourseById(selectedCourseId)) selectedCourseId = null;
       if(selectedCourseId) renderCourseDetail();
+    }
+
+    function closeCourseDetailDirect(){
+      selectedCourseId = null;
+      if(courseDetailCard) courseDetailCard.classList.add("hidden");
+      renderCourses();
+    }
+
+    function closeCourseDetail(){
+      closeInternalNavLayer("course", closeCourseDetailDirect);
     }
 
     function renderCourseDetail(){
@@ -3466,9 +3597,12 @@ todoActiveList.appendChild(item);
       if(!canCurrentRoleAccess("students")) return;
       var st=id?getStudentById(id):null; studentEditingId.value=st?st.id:""; studentModalTitle.textContent=st?"Modifica studente":"Nuovo studente";
       studentFirstName.value=st?st.firstName:""; studentLastName.value=st?st.lastName:""; studentEmail.value=st?st.email:""; studentPhone.value=st?st.phone:""; studentNotes.value=st?st.notes:"";
-      renderStudentCourseChecks(st); renderStudentAttendanceSummary(st); deleteStudentBtn.classList.toggle("hidden",!st); studentOverlay.style.display="flex"; studentOverlay.classList.add("open"); studentOverlay.setAttribute("aria-hidden","false"); setTimeout(function(){try{studentFirstName.focus();}catch(e){}},30);
+      renderStudentCourseChecks(st); renderStudentAttendanceSummary(st); deleteStudentBtn.classList.toggle("hidden",!st); studentOverlay.style.display="flex"; studentOverlay.classList.add("open"); studentOverlay.setAttribute("aria-hidden","false");
+      pushInternalNavLayer("student", closeStudentModalDirect);
+      setTimeout(function(){try{studentFirstName.focus();}catch(e){}},30);
     }
-    function closeStudentModal(){ if(!studentOverlay)return; studentOverlay.style.display="none"; studentOverlay.classList.remove("open"); studentOverlay.setAttribute("aria-hidden","true"); }
+    function closeStudentModalDirect(){ if(!studentOverlay)return; studentOverlay.style.display="none"; studentOverlay.classList.remove("open"); studentOverlay.setAttribute("aria-hidden","true"); }
+    function closeStudentModal(){ closeInternalNavLayer("student", closeStudentModalDirect); }
     function saveStudent(){
       if(!canCurrentRoleAccess("students") || !canMutateSchoolData()) return; var first=String(studentFirstName.value||"").trim(), last=String(studentLastName.value||"").trim(); if(!first && !last){alert("Inserisci almeno nome o cognome.");return;}
       var id=studentEditingId.value; var existing=id?getStudentById(id):null; var checked=Array.prototype.slice.call(studentCourseChecks.querySelectorAll('input[type="checkbox"]:checked')).map(function(x){return x.value;});
@@ -3614,9 +3748,12 @@ todoActiveList.appendChild(item);
       if(!canCurrentRoleAccess("administration"))return;
       var st=getStudentById(studentId),course=getCourseById(courseId);if(!st||!course)return;
       financeStudentId.value=st.id;financeCourseId.value=course.id;financePaymentAmount.value="";financePaymentDate.value=isoDate(getTodayDate());financePaymentMethod.value="";financePaymentNote.value="";
-      financeOverlay.style.display="flex";financeOverlay.classList.add("open");financeOverlay.setAttribute("aria-hidden","false");refreshFinanceModal();
+      financeOverlay.style.display="flex";financeOverlay.classList.add("open");financeOverlay.setAttribute("aria-hidden","false");
+      pushInternalNavLayer("finance", closeFinanceModalDirect);
+      refreshFinanceModal();
     }
-    function closeFinanceModal(){if(!financeOverlay)return;financeOverlay.style.display="none";financeOverlay.classList.remove("open");financeOverlay.setAttribute("aria-hidden","true");}
+    function closeFinanceModalDirect(){if(!financeOverlay)return;financeOverlay.style.display="none";financeOverlay.classList.remove("open");financeOverlay.setAttribute("aria-hidden","true");}
+    function closeFinanceModal(){closeInternalNavLayer("finance", closeFinanceModalDirect);}
     function saveFinanceSettings(){
       if(!canCurrentRoleAccess("administration")||!canMutateSchoolData())return;
       var st=getStudentById(financeStudentId.value),course=getCourseById(financeCourseId.value);if(!st||!course)return;
@@ -3650,7 +3787,7 @@ todoActiveList.appendChild(item);
 
     // Wire
     tabs.forEach(function(t){
-      function activateTab(){ setView(t.getAttribute("data-view")); }
+      function activateTab(){ navigateMainView(t.getAttribute("data-view")); }
       t.addEventListener("click", activateTab);
       t.addEventListener("keydown", function(ev){
         if(ev.key === "Enter" || ev.key === " "){
@@ -3662,8 +3799,18 @@ todoActiveList.appendChild(item);
 
     if(topTodayLine){
       topTodayLine.addEventListener("click", function(){
-        todayViewOffset = 0;
-        if(setView("today")) renderTodayPanel();
+        if(currentView === "today") return;
+        var openToday = function(){
+          var previousView = currentView;
+          todayViewOffset = 0;
+          pushInternalNavLayer("today", function(){
+            todayViewOffset = 0;
+            setView(previousView, true);
+          });
+          if(setView("today")) renderTodayPanel();
+        };
+        if(internalNavStack.length || internalNavBackPending) abandonInternalLayers(openToday);
+        else openToday();
       });
     }
 
@@ -3789,7 +3936,7 @@ todoActiveList.appendChild(item);
 
 
 
-    if(closeCourseDetailBtn) closeCourseDetailBtn.addEventListener("click", function(){ selectedCourseId=null; courseDetailCard.classList.add("hidden"); renderCourses(); });
+    if(closeCourseDetailBtn) closeCourseDetailBtn.addEventListener("click", closeCourseDetail);
     if(saveCourseSettingsBtn) saveCourseSettingsBtn.addEventListener("click", saveCourseSettings);
     if(saveLessonBtn) saveLessonBtn.addEventListener("click", saveLesson);
     if(cancelLessonEditBtn) cancelLessonEditBtn.addEventListener("click", function(){ var c=getCourseById(selectedCourseId); if(c) resetLessonEditor(c,true); });
@@ -3821,6 +3968,7 @@ todoActiveList.appendChild(item);
     renderAll();
     syncTodoMiniPanelAria();
     updateStorageStatus();
+    initInternalNavigation();
     setView("calendar");
 
     
