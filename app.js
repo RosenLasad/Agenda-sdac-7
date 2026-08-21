@@ -1443,6 +1443,7 @@
     var deleteStudentBtn = $("#deleteStudentBtn");
     var closeStudentBtn = $("#closeStudentBtn");
     var selectedCourseId = null;
+    var coursesListScrollY = null;
 
     var administrationAcademicYear = $("#administrationAcademicYear");
     var administrationRoleHint = $("#administrationRoleHint");
@@ -3297,6 +3298,7 @@ todoActiveList.appendChild(item);
       }
       if(!courses.length){
         courseGrid.innerHTML = '<div class="schoolEmptyState">Nessun corso associato a questo account. Chiedi a un Admin o Socio di inserire la tua email nella configurazione del corso.</div>';
+        if(viewCourses) viewCourses.classList.remove("course-detail-open");
         if(courseDetailCard) courseDetailCard.classList.add("hidden");
         return;
       }
@@ -3311,9 +3313,12 @@ todoActiveList.appendChild(item);
           '<span class="schoolCourseCardSide"><strong>'+students.length+'</strong><span>iscritti</span><small>'+(next ? "Prossima: "+escapeHtml(formatSchoolDate(next.date)) : "Registro vuoto")+'</small></span>';
         card.addEventListener("click", function(){
           var detailWasOpen = !!(selectedCourseId && courseDetailCard && !courseDetailCard.classList.contains("hidden"));
+          if(!detailWasOpen){
+            coursesListScrollY = window.scrollY || window.pageYOffset || 0;
+          }
           selectedCourseId = course.id;
           renderCourses();
-          renderCourseDetail();
+          renderCourseDetail({ focusTop: !detailWasOpen });
           if(!detailWasOpen) pushInternalNavLayer("course", closeCourseDetailDirect);
         });
         courseGrid.appendChild(card);
@@ -3323,19 +3328,33 @@ todoActiveList.appendChild(item);
     }
 
     function closeCourseDetailDirect(){
+      var restoreY = coursesListScrollY;
       selectedCourseId = null;
+      if(viewCourses) viewCourses.classList.remove("course-detail-open");
       if(courseDetailCard) courseDetailCard.classList.add("hidden");
       renderCourses();
+      coursesListScrollY = null;
+      if(Number.isFinite(Number(restoreY))){
+        requestAnimationFrame(function(){
+          try{ window.scrollTo({ top: Math.max(0, Number(restoreY) || 0), behavior: "auto" }); }catch(e){ window.scrollTo(0, Math.max(0, Number(restoreY) || 0)); }
+        });
+      }
     }
 
     function closeCourseDetail(){
       closeInternalNavLayer("course", closeCourseDetailDirect);
     }
 
-    function renderCourseDetail(){
+    function renderCourseDetail(options){
       if(!courseDetailCard) return;
+      options = options || {};
       var course = getCourseById(selectedCourseId);
-      if(!course){ courseDetailCard.classList.add("hidden"); return; }
+      if(!course){
+        if(viewCourses) viewCourses.classList.remove("course-detail-open");
+        courseDetailCard.classList.add("hidden");
+        return;
+      }
+      if(viewCourses) viewCourses.classList.add("course-detail-open");
       courseDetailCard.classList.remove("hidden");
       courseDetailEyebrow.textContent = ACADEMIC_YEAR + " · " + weekdayLabel(course.weekday);
       courseDetailTitle.textContent = (course.icon || "🎓") + " " + course.name;
@@ -3354,6 +3373,11 @@ todoActiveList.appendChild(item);
       renderCourseRoster(course);
       resetLessonEditor(course, true);
       renderCourseLessons(course);
+      if(options.focusTop){
+        requestAnimationFrame(function(){
+          try{ courseDetailCard.scrollIntoView({ behavior: "auto", block: "start" }); }catch(e){}
+        });
+      }
     }
 
     function renderCourseRoster(course){

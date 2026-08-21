@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-agenda-shell-v18-mobile-back-navigation";
+const CACHE_NAME = "sdac-agenda-shell-v19-course-detail-page";
 
 const APP_SHELL = [
   "./",

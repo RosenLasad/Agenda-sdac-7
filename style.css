@@ -4781,3 +4781,50 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
   background:linear-gradient(180deg, #fceff0, #ecc8cd) !important;
 }
 
+
+
+/* === Corsi: dettaglio come vista interna dedicata === */
+#view-courses.course-detail-open .schoolHeroCard,
+#view-courses.course-detail-open .schoolCourseGrid{
+  display:none !important;
+}
+#view-courses.course-detail-open .schoolStack{
+  gap:0;
+}
+#view-courses.course-detail-open .schoolCourseDetail{
+  width:100%;
+  margin:0;
+}
+#view-courses.course-detail-open .schoolCourseDetailHeader{
+  position:relative;
+}
+#view-courses .courseBackBtn{
+  flex:0 0 auto;
+  white-space:nowrap;
+}
+@media (max-width:720px){
+  #view-courses.course-detail-open .schoolCourseDetail{
+    border-radius:12px;
+  }
+  #view-courses.course-detail-open .schoolCourseDetail > .cardHeader{
+    padding-top:10px;
+    padding-bottom:9px;
+  }
+  #view-courses.course-detail-open .schoolCourseDetail > .cardBody{
+    padding-top:10px;
+  }
+  #view-courses .courseBackBtn{
+    min-height:34px;
+    padding:6px 10px;
+    font-size:13px;
+  }
+}
+@media (max-width:430px){
+  #view-courses.course-detail-open .schoolCourseDetailHeader{
+    gap:8px;
+  }
+  #view-courses .courseBackBtn{
+    min-width:auto;
+    padding-inline:8px;
+  }
+}
