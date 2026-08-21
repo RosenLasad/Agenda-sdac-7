@@ -3591,9 +3591,9 @@ todoActiveList.appendChild(item);
       studentListMeta.textContent=visible.length+" visibili · "+all.length+" totali"; studentList.innerHTML="";
       if(!visible.length){ studentList.innerHTML='<div class="schoolEmptyState">Nessuno studente corrisponde ai filtri.</div>'; return; }
       visible.forEach(function(st){
-        var courses=(st.courseIds||[]).map(getCourseById).filter(Boolean); var stats=attendanceStatsForStudent(st); var summary=studentFinanceSummary(st); var card=document.createElement("div"); card.className="schoolStudentCard";
+        var courses=(st.courseIds||[]).map(getCourseById).filter(Boolean); var summary=studentFinanceSummary(st); var card=document.createElement("div"); card.className="schoolStudentCard";
         var openBtn=document.createElement("button"); openBtn.type="button"; openBtn.className="schoolStudentOpenBtn";
-        openBtn.innerHTML='<span class="schoolAvatar large">'+escapeHtml((st.firstName||st.lastName||"S").charAt(0).toUpperCase())+'</span><span class="schoolStudentCardMain"><strong>'+escapeHtml(fullStudentName(st))+'</strong><span>'+escapeHtml(st.email||st.phone||"Contatti non inseriti")+'</span><span class="schoolStudentCourses">'+courses.map(function(c){return escapeHtml(c.icon+" "+c.name);}).join(" · ")+'</span></span><span class="schoolStudentAttendance"><strong>'+stats.present+'/'+stats.total+'</strong><span>presenze</span></span>';
+        openBtn.innerHTML='<span class="schoolAvatar large">'+escapeHtml((st.firstName||st.lastName||"S").charAt(0).toUpperCase())+'</span><span class="schoolStudentCardMain"><strong>'+escapeHtml(fullStudentName(st))+'</strong><span>'+escapeHtml(st.email||st.phone||"Contatti non inseriti")+'</span><span class="schoolStudentCourses">'+courses.map(function(c){return escapeHtml(c.icon+" "+c.name);}).join(" · ")+'</span></span>';
         openBtn.addEventListener("click",function(){openStudentModal(st.id);}); card.appendChild(openBtn);
         if(canCurrentRoleAccess("administration")){
           var financeBtn=document.createElement("button"); financeBtn.type="button"; financeBtn.className="schoolStudentFinance"; financeBtn.title="Apri la situazione economica in Amministrazione";
