@@ -4419,3 +4419,130 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
   border-color:rgba(153,106,33,.42);
   filter:saturate(1.02) brightness(.99);
 }
+
+/* ===== Tema chiaro: palette segnalibri piu viva e leggibile (2026-08-21) ===== */
+/* Solo light mode: nessuna modifica alla palette del tema scuro. */
+:root[data-theme="light"] body .bookmarkTab{
+  text-shadow:0 1px 0 rgba(0,0,0,.10);
+  box-shadow:0 10px 18px rgba(82,66,48,.13), inset 0 1px 0 rgba(255,255,255,.34);
+}
+
+/* Calendario - corallo/rosso SDAC */
+:root[data-theme="light"] body .bookmarkTab--calendar{
+  color:#fff;
+  background:linear-gradient(180deg, #b8445a 0%, #963044 100%);
+  border-color:#873044;
+}
+:root[data-theme="light"] body .bookmarkTab--calendar:hover{
+  color:#fff;
+  background:linear-gradient(180deg, #c14d63 0%, #a9384d 100%);
+  border-color:#943247;
+  filter:saturate(1.04) brightness(1.02);
+}
+:root[data-theme="light"] body .bookmarkTab--calendar.active,
+:root[data-theme="light"] body .bookmarkTab--calendar.active:hover{
+  color:#fff;
+  background:linear-gradient(180deg, #963247 0%, #702233 100%);
+  border-color:#67202f;
+  filter:saturate(1.04) brightness(.98);
+}
+
+/* Taccuino - grigio blu */
+:root[data-theme="light"] body .bookmarkTab--notebook{
+  color:#fff;
+  background:linear-gradient(180deg, #62788c 0%, #465c70 100%);
+  border-color:#405568;
+}
+:root[data-theme="light"] body .bookmarkTab--notebook:hover{
+  color:#fff;
+  background:linear-gradient(180deg, #6e859a 0%, #50677c 100%);
+  border-color:#465e72;
+  filter:saturate(1.04) brightness(1.02);
+}
+:root[data-theme="light"] body .bookmarkTab--notebook.active,
+:root[data-theme="light"] body .bookmarkTab--notebook.active:hover{
+  color:#fff;
+  background:linear-gradient(180deg, #485e72 0%, #334657 100%);
+  border-color:#2e4050;
+  filter:saturate(1.03) brightness(.98);
+}
+
+/* Corsi - blu */
+:root[data-theme="light"] body .bookmarkTab--courses{
+  color:#fff;
+  background:linear-gradient(180deg, #3b78be 0%, #295e9c 100%);
+  border-color:#24578f;
+}
+:root[data-theme="light"] body .bookmarkTab--courses:hover{
+  color:#fff;
+  background:linear-gradient(180deg, #417fc6 0%, #2e66a7 100%);
+  border-color:#285c98;
+  filter:saturate(1.05) brightness(1.02);
+}
+:root[data-theme="light"] body .bookmarkTab--courses.active,
+:root[data-theme="light"] body .bookmarkTab--courses.active:hover{
+  color:#fff;
+  background:linear-gradient(180deg, #285c98 0%, #1e4779 100%);
+  border-color:#1a3e6b;
+  filter:saturate(1.04) brightness(.98);
+}
+
+/* Studenti - verde */
+:root[data-theme="light"] body .bookmarkTab--students{
+  color:#fff;
+  background:linear-gradient(180deg, #327e54 0%, #286e48 100%);
+  border-color:#23623f;
+}
+:root[data-theme="light"] body .bookmarkTab--students:hover{
+  color:#fff;
+  background:linear-gradient(180deg, #37875b 0%, #2d7850 100%);
+  border-color:#286d48;
+  filter:saturate(1.05) brightness(1.02);
+}
+:root[data-theme="light"] body .bookmarkTab--students.active,
+:root[data-theme="light"] body .bookmarkTab--students.active:hover{
+  color:#fff;
+  background:linear-gradient(180deg, #286b47 0%, #1d5135 100%);
+  border-color:#19482f;
+  filter:saturate(1.04) brightness(.98);
+}
+
+/* Amministrazione - ambra/oro */
+:root[data-theme="light"] body .bookmarkTab--administration{
+  color:#2a1c08;
+  text-shadow:0 1px 0 rgba(255,255,255,.20);
+  background:linear-gradient(180deg, #dfad47 0%, #bd851e 100%);
+  border-color:#aa7417;
+}
+:root[data-theme="light"] body .bookmarkTab--administration:hover{
+  color:#251805;
+  background:linear-gradient(180deg, #e9b851 0%, #c99126 100%);
+  border-color:#b47d1b;
+  filter:saturate(1.05) brightness(1.02);
+}
+:root[data-theme="light"] body .bookmarkTab--administration.active,
+:root[data-theme="light"] body .bookmarkTab--administration.active:hover{
+  color:#fff7e5;
+  text-shadow:0 1px 0 rgba(0,0,0,.16);
+  background:linear-gradient(180deg, #a87318 0%, #7d520e 100%);
+  border-color:#70480b;
+  filter:saturate(1.04) brightness(.98);
+}
+
+/* Testo e puntina restano leggibili sulle palette sature. */
+:root[data-theme="light"] body .bookmarkTab--calendar .tabPin,
+:root[data-theme="light"] body .bookmarkTab--notebook .tabPin,
+:root[data-theme="light"] body .bookmarkTab--courses .tabPin,
+:root[data-theme="light"] body .bookmarkTab--students .tabPin{
+  background:rgba(255,255,255,.78);
+}
+:root[data-theme="light"] body .bookmarkTab--administration .tabPin{
+  background:rgba(72,48,12,.50);
+}
+:root[data-theme="light"] body .bookmarkTab--calendar.active .tabText,
+:root[data-theme="light"] body .bookmarkTab--notebook.active .tabText,
+:root[data-theme="light"] body .bookmarkTab--courses.active .tabText,
+:root[data-theme="light"] body .bookmarkTab--students.active .tabText,
+:root[data-theme="light"] body .bookmarkTab--administration.active .tabText{
+  color:inherit;
+}
