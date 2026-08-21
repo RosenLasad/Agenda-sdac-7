@@ -4547,71 +4547,237 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
   color:inherit;
 }
 
-/* ===== Tema chiaro: leggibilita controlli e azioni (2026-08-21) =====
-   Testo scuro sui controlli chiari; nessun effetto sul tema scuro. */
-:root[data-theme="light"] body input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
-:root[data-theme="light"] body textarea,
-:root[data-theme="light"] body select{
-  color:#35271f !important;
-  -webkit-text-fill-color:#35271f;
-  caret-color:#35271f;
+/* ===== Tema chiaro: controlli per categoria (2026-08-21) =====
+   Override volutamente circoscritto alle singole aree dell'app.
+   Risolve i vecchi background scuri !important senza alterare il tema scuro
+   o i controlli esterni alle sezioni (es. account/login). */
+
+/* Palette locali: superfici chiare, testo scuro, accento della categoria. */
+:root[data-theme="light"] #view-calendar,
+:root[data-theme="light"] #dayOverlay{
+  --section-field-top:#fff8f9;
+  --section-field-bottom:#f7e5e9;
+  --section-field-solid:#f9eaed;
+  --section-field-border:#d8a2ad;
+  --section-field-text:#48272f;
+  --section-field-placeholder:#8a626b;
+  --section-accent:#a33e53;
+  --section-action-top:#f5dfe4;
+  --section-action-bottom:#e9c7cf;
 }
 
-:root[data-theme="light"] body input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"])::placeholder,
-:root[data-theme="light"] body textarea::placeholder{
-  color:rgba(82,62,48,.62) !important;
-  -webkit-text-fill-color:rgba(82,62,48,.62);
+:root[data-theme="light"] #view-notebook,
+:root[data-theme="light"] #contactOverlay{
+  --section-field-top:#f8fbfd;
+  --section-field-bottom:#e8eff4;
+  --section-field-solid:#edf3f7;
+  --section-field-border:#a8bac8;
+  --section-field-text:#293b49;
+  --section-field-placeholder:#718493;
+  --section-accent:#506f88;
+  --section-action-top:#e7eef4;
+  --section-action-bottom:#d3e0e9;
+}
+
+:root[data-theme="light"] #view-courses{
+  --section-field-top:#f7fbff;
+  --section-field-bottom:#e3f0fb;
+  --section-field-solid:#eaf4fc;
+  --section-field-border:#91b9dc;
+  --section-field-text:#1f4262;
+  --section-field-placeholder:#66839d;
+  --section-accent:#2e6fae;
+  --section-action-top:#e1effb;
+  --section-action-bottom:#c9e1f5;
+}
+
+:root[data-theme="light"] #view-students,
+:root[data-theme="light"] #studentOverlay{
+  --section-field-top:#f7fcf8;
+  --section-field-bottom:#e2f2e7;
+  --section-field-solid:#eaf6ed;
+  --section-field-border:#93c1a2;
+  --section-field-text:#234a32;
+  --section-field-placeholder:#678772;
+  --section-accent:#2f7750;
+  --section-action-top:#e0f1e5;
+  --section-action-bottom:#c8e5d1;
+}
+
+:root[data-theme="light"] #view-administration,
+:root[data-theme="light"] #financeOverlay{
+  --section-field-top:#fffdf7;
+  --section-field-bottom:#f7ecd1;
+  --section-field-solid:#fbf1d9;
+  --section-field-border:#d5b66f;
+  --section-field-text:#4d3915;
+  --section-field-placeholder:#8b7446;
+  --section-accent:#a87418;
+  --section-action-top:#f8ebc8;
+  --section-action-bottom:#ecd69e;
+}
+
+/* Tutti i campi delle cinque aree: includiamo anche search/date/number,
+   che le vecchie regole light non coprivano. */
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) input:not([type="checkbox"]):not([type="radio"]):not([type="hidden"]),
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) textarea,
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) select{
+  color:var(--section-field-text) !important;
+  -webkit-text-fill-color:var(--section-field-text) !important;
+  caret-color:var(--section-field-text);
+  border-color:var(--section-field-border) !important;
+  background:linear-gradient(180deg, var(--section-field-top), var(--section-field-bottom)) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.88);
+}
+
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) input::placeholder,
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) textarea::placeholder{
+  color:var(--section-field-placeholder) !important;
+  -webkit-text-fill-color:var(--section-field-placeholder) !important;
   opacity:1;
 }
 
-:root[data-theme="light"] body select option,
-:root[data-theme="light"] body select optgroup{
-  color:#35271f;
-  background:#f7f1e5;
+/* Le voci native dei select devono vincere sul vecchio select scuro !important. */
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) select option,
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) select optgroup{
+  color:var(--section-field-text) !important;
+  -webkit-text-fill-color:var(--section-field-text) !important;
+  background:var(--section-field-solid) !important;
+  background-color:var(--section-field-solid) !important;
 }
 
-/* Anche i valori ripristinati dal password manager/autofill restano scuri. */
-:root[data-theme="light"] body input:-webkit-autofill,
-:root[data-theme="light"] body input:-webkit-autofill:hover,
-:root[data-theme="light"] body input:-webkit-autofill:focus{
-  -webkit-text-fill-color:#35271f !important;
-  caret-color:#35271f;
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) input:focus,
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) textarea:focus,
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) select:focus{
+  border-color:var(--section-accent) !important;
+  box-shadow:0 0 0 3px color-mix(in srgb, var(--section-accent) 18%, transparent), inset 0 1px 0 rgba(255,255,255,.9);
 }
 
-/* Nel tema chiaro le azioni principali usano una superficie chiara e testo scuro. */
-:root[data-theme="light"] body .btn.primary,
-:root[data-theme="light"] body .smallBtn.primary{
-  color:#3f2528 !important;
+/* Autofill: preserva la palette della sezione invece del colore del browser. */
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) input:-webkit-autofill,
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) input:-webkit-autofill:hover,
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) input:-webkit-autofill:focus{
+  -webkit-text-fill-color:var(--section-field-text) !important;
+  caret-color:var(--section-field-text);
+  -webkit-box-shadow:0 0 0 1000px var(--section-field-solid) inset !important;
+}
+
+/* Azioni principali: chiare e nella palette della sezione, con testo scuro. */
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) :is(.btn.primary, .smallBtn.primary){
+  color:var(--section-field-text) !important;
+  -webkit-text-fill-color:var(--section-field-text) !important;
   text-shadow:none;
-  border-color:rgba(133,59,71,.48);
-  background:linear-gradient(180deg, #f5e3e5 0%, #e8cdd1 100%);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.90), 0 3px 10px rgba(96,41,51,.10);
-}
-:root[data-theme="light"] body .btn.primary:hover,
-:root[data-theme="light"] body .smallBtn.primary:hover{
-  color:#321d20 !important;
-  border-color:rgba(122,54,66,.66);
-  background:linear-gradient(180deg, #f8e8ea 0%, #e4c2c7 100%);
+  border-color:var(--section-field-border) !important;
+  background:linear-gradient(180deg, var(--section-action-top), var(--section-action-bottom)) !important;
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.92), 0 3px 9px rgba(60,50,35,.08);
 }
 
-/* Le azioni distruttive restano distinguibili senza testo bianco. */
-:root[data-theme="light"] body .btn.danger:not(#loginBtn),
-:root[data-theme="light"] body .smallBtn.danger{
+:root[data-theme="light"] :is(
+  #view-calendar, #dayOverlay,
+  #view-notebook, #contactOverlay,
+  #view-courses,
+  #view-students, #studentOverlay,
+  #view-administration, #financeOverlay
+) :is(.btn.primary, .smallBtn.primary):hover{
+  border-color:var(--section-accent) !important;
+  filter:saturate(1.04) brightness(1.015);
+}
+
+/* Eliminazione studente: resta semanticamente rossa, ma chiara e leggibile. */
+:root[data-theme="light"] #studentOverlay :is(.btn.danger, .smallBtn.danger){
   color:#702a32 !important;
+  -webkit-text-fill-color:#702a32 !important;
   text-shadow:none;
-  border-color:rgba(143,47,53,.46);
-  background:linear-gradient(180deg, #f8e2e3 0%, #edc7ca 100%);
-  box-shadow:inset 0 1px 0 rgba(255,255,255,.90), 0 3px 10px rgba(112,42,50,.09);
+  border-color:#d59aa1 !important;
+  background:linear-gradient(180deg, #faecee, #f0d4d8) !important;
 }
-:root[data-theme="light"] body .btn.danger:not(#loginBtn):hover,
-:root[data-theme="light"] body .smallBtn.danger:hover{
+:root[data-theme="light"] #studentOverlay :is(.btn.danger, .smallBtn.danger):hover{
   color:#5d2028 !important;
-  border-color:rgba(143,47,53,.64);
-  background:linear-gradient(180deg, #f9e7e8 0%, #eabec2 100%);
+  border-color:#bd747e !important;
+  background:linear-gradient(180deg, #fceff0, #ecc8cd) !important;
 }
 
-/* Il Login conserva il contrasto bianco su rosso scuro. */
-:root[data-theme="light"] body #loginBtn{
-  color:#fff7f8;
-  -webkit-text-fill-color:#fff7f8;
-}
