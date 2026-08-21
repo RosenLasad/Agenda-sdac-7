@@ -3536,9 +3536,11 @@ body.cloudSyncLocked #view-today{
 
 .headerStatusStack{
   display:flex;
-  flex-direction:column;
-  align-items:flex-end;
-  gap:4px;
+  flex-direction:row;
+  align-items:center;
+  justify-content:flex-end;
+  flex-wrap:nowrap;
+  gap:6px;
   max-width:100%;
 }
 
@@ -3769,12 +3771,19 @@ body.cloudSyncLocked #accountOverlay{
     padding:4px 8px;
   }
   .headerStatusStack{
-    gap:3px;
+    gap:5px;
   }
   .sessionRoleBadge{
     min-height:20px;
     padding:3px 7px;
     font-size:9px;
+  }
+}
+
+@media (max-width: 340px){
+  .headerStatusStack{
+    flex-wrap:wrap;
+    row-gap:3px;
   }
 }
 
