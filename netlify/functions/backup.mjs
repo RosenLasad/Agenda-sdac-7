@@ -3,6 +3,7 @@ import { getStore } from "@netlify/blobs";
 const SHARED_STATE_KEY = "state-v2-shared-sdac";
 
 export default async () => {
+  if (process.env.CONTEXT !== "production") return;
   const store = getStore({ name: "sdac-agenda", consistency: "strong" });
 
   // Il nuovo archivio e condiviso tra tutti gli account SDAC autorizzati.

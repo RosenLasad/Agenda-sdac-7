@@ -1050,5 +1050,15 @@
   <script src="oggi/today-view.js"></script>
   <script src="app.js"></script>
   <script src="account.js"></script>
+<script>
+(function(){
+  var host=location.hostname;
+  if (!/^(?:deploy-preview-\d+|[^.]+--)sdac-agenda\.netlify\.app$/.test(host)) return;
+  var b=document.createElement('div'); b.textContent='AMBIENTE TEST — Dati dimostrativi · Nessuna modifica all’archivio ufficiale';
+  b.setAttribute('role','status');
+  b.style.cssText='position:fixed;z-index:99999;bottom:0;left:0;right:0;background:#61430b;color:white;text-align:center;padding:7px 10px;font:600 13px Arial,sans-serif;pointer-events:none;';
+  document.body.appendChild(b);
+})();
+</script>
 </body>
 </html>
