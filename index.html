@@ -186,6 +186,7 @@
           <div class="actions">
             <button class="btn hidden installActionBtn" id="installBtn" type="button" title="Installa SDAC Agenda">Installa</button>
 
+            <button class="btn iconBtn notebookHeaderBtn" id="notebookHeaderBtn" type="button" title="Apri Taccuino" aria-label="Apri Taccuino"><span aria-hidden="true">📓</span></button>
             <div class="settingsMenuWrap" id="settingsMenuWrap">
               <button class="btn iconBtn settingsMenuBtn" id="settingsMenuBtn" type="button" title="Impostazioni" aria-label="Apri Impostazioni" aria-haspopup="menu" aria-expanded="false">
                 <span class="ico" aria-hidden="true">⚙️</span>
@@ -219,7 +220,7 @@
               <span class="cloudStatusText">Non verificato</span>
               <span class="cloudStatusMeta" aria-hidden="true"></span>
             </div>
-            <div class="sessionRoleBadge" id="sessionRoleBadge" data-role="guest" title="Ruolo attivo: Ospite" aria-label="Ruolo attivo: Ospite">
+            <div class="sessionRoleBadge" id="sessionRoleBadge" role="button" tabindex="-1" data-role="guest" title="Ruolo attivo: Ospite" aria-label="Ruolo attivo: Ospite">
               <span class="sessionRoleIcon" id="sessionRoleIcon" aria-hidden="true">👤</span>
               <span class="sessionRoleText" id="sessionRoleText">Ospite</span>
             </div>
@@ -246,7 +247,7 @@
             </span>
             <span class="tabText">Calendario</span>
           </div>
-          <div class="tab bookmarkTab bookmarkTab--notebook" data-view="notebook" role="button" tabindex="0" aria-label="Taccuino" title="Taccuino">
+          <div class="tab bookmarkTab bookmarkTab--notebook hidden" data-view="notebook" role="button" tabindex="0" aria-label="Taccuino" title="Taccuino">
             <span class="tabPin" aria-hidden="true"></span>
             <span class="tabIcon" aria-hidden="true">
               <svg viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -976,7 +977,7 @@
               </div>
               <div class="field">
                 <label for="accountLoginPassword">Password</label>
-                <input id="accountLoginPassword" name="password" type="password" placeholder="Password" autocomplete="current-password">
+                <div class="accountPasswordWithToggle"><input id="accountLoginPassword" name="password" type="password" placeholder="Password" autocomplete="current-password"><button id="toggleLoginPassword" class="passwordEyeToggle" type="button" aria-label="Mostra password" title="Mostra password" aria-pressed="false"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg></button></div>
               </div>
               <div class="accountFormActions">
                 <button class="btn primary" id="btnAccountLogin" type="submit">Accedi</button>
@@ -1050,5 +1051,15 @@
   <script src="oggi/today-view.js"></script>
   <script src="app.js"></script>
   <script src="account.js"></script>
+<script>
+(function(){
+  var host=location.hostname;
+  if (!/^(?:deploy-preview-\d+|[^.]+--)sdac-agenda\.netlify\.app$/.test(host)) return;
+  var b=document.createElement('div'); b.textContent='AMBIENTE TEST — Dati dimostrativi · Nessuna modifica all’archivio ufficiale';
+  b.setAttribute('role','status');
+  b.style.cssText='position:fixed;z-index:99999;bottom:0;left:0;right:0;background:#61430b;color:white;text-align:center;padding:7px 10px;font:600 13px Arial,sans-serif;pointer-events:none;';
+  document.body.appendChild(b);
+})();
+</script>
 </body>
 </html>

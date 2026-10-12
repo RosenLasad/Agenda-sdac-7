@@ -1367,6 +1367,8 @@
 
     var agendaWeekCount = $("#agendaWeekCount");
     var agendaWeekList = $("#agendaWeekList");
+    var notebookHeaderBtn = $("#notebookHeaderBtn");
+    var sessionRoleBadgeHeader = $("#sessionRoleBadge");
     var settingsMenuWrap = $("#settingsMenuWrap");
     var settingsMenuBtn = $("#settingsMenuBtn");
     var settingsMenu = $("#settingsMenu");
@@ -1545,6 +1547,13 @@
       });
 
       setRoleLockedElement(settingsMenuBtn, !settingsAllowed, roleRestrictionMessage("settings"));
+      if(notebookHeaderBtn) notebookHeaderBtn.hidden = !notebookAllowed;
+      if(sessionRoleBadgeHeader){
+        sessionRoleBadgeHeader.tabIndex = settingsAllowed ? 0 : -1;
+        sessionRoleBadgeHeader.classList.toggle("adminSettingsTrigger", settingsAllowed);
+        sessionRoleBadgeHeader.setAttribute("aria-haspopup", settingsAllowed ? "menu" : "false");
+        sessionRoleBadgeHeader.setAttribute("title", settingsAllowed ? "Admin · Apri Impostazioni" : "Ruolo attivo: " + currentAccessRole);
+      }
       if(!settingsAllowed && typeof setSettingsMenuOpen === "function") setSettingsMenuOpen(false);
 
       var todoPanelCard = todoMiniPanel && todoMiniPanel.closest ? todoMiniPanel.closest(".todoPanelCard") : null;
@@ -3889,6 +3898,11 @@ todoActiveList.appendChild(item);
     if(btnCancelEventEdit) btnCancelEventEdit.addEventListener("click", cancelEventEdit);
     btnPrintDay.addEventListener("click", printDay);
 
+    if(notebookHeaderBtn) notebookHeaderBtn.addEventListener("click", function(){ setView("notebook"); });
+    if(sessionRoleBadgeHeader){
+      sessionRoleBadgeHeader.addEventListener("click", function(ev){ if(canCurrentRoleAccess("settings")){ ev.stopPropagation(); toggleSettingsMenu(); } });
+      sessionRoleBadgeHeader.addEventListener("keydown", function(ev){ if(canCurrentRoleAccess("settings") && (ev.key === "Enter" || ev.key === " ")){ ev.preventDefault(); ev.stopPropagation(); toggleSettingsMenu(); } });
+    }
     if(settingsMenuBtn){
       settingsMenuBtn.addEventListener("click", function(ev){
         ev.stopPropagation();

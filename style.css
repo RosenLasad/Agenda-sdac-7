@@ -4828,3 +4828,23 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
     padding-inline:8px;
   }
 }
+
+/* SDAC Fase 2 - UI only. No changes to storage or cloud flows. */
+.settingsMenuBtn{display:none !important;}
+.bookmarkTab--notebook{display:none !important;}
+.notebookHeaderBtn{font-size:19px; line-height:1;}
+.notebookHeaderBtn[hidden]{display:none !important;}
+.sessionRoleBadge.adminSettingsTrigger{cursor:pointer; outline-offset:3px;}
+.sessionRoleBadge.adminSettingsTrigger:focus-visible{outline:2px solid currentColor;}
+/* Keep existing dropdown inside settingsMenuWrap; position at the top-right corner. */
+.settingsMenuWrap{position:static;}
+.settingsDropdown{z-index:200;}
+.actionsBlock{position:relative;}
+.accountModal{width:min(570px, calc(100vw - 36px));max-width:570px;}
+.accountPasswordWithToggle{position:relative; width:100%;}
+.accountPasswordWithToggle input{width:100%; padding-right:48px !important;}
+.passwordEyeToggle{position:absolute;right:7px;top:50%;transform:translateY(-50%);display:flex;align-items:center;justify-content:center;width:35px;height:35px;border:0;border-radius:8px;background:transparent;color:inherit;cursor:pointer;}
+.passwordEyeToggle svg{width:21px;height:21px;}
+.passwordEyeToggle:hover,.passwordEyeToggle:focus-visible{background:rgba(128,128,128,.2);}
+@media(max-width:520px){.accountModal{width:calc(100vw - 42px) !important;max-width:calc(100vw - 42px) !important;}.accountModalBody{padding:12px !important;}}
+.settingsDropdown{top:100%;right:0;margin-top:7px;}

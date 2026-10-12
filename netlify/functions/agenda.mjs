@@ -5,6 +5,25 @@ const SHARED_STATE_KEY = "state-v2-shared-sdac";
 const SHARED_META_KEY = "state-v2-shared-sdac-meta";
 const ALLOWED_ROLES = new Set(["admin", "socio", "docente"]);
 const CURRENT_DATA_VERSION = 3;
+// FAIL CLOSED: previews must never use or migrate the production store.
+const DEPLOY_CONTEXT = process.env.CONTEXT || process.env.NETLIFY_CONTEXT || '';
+const IS_PRODUCTION = DEPLOY_CONTEXT === 'production';
+const IS_TEST = DEPLOY_CONTEXT === 'deploy-preview' || DEPLOY_CONTEXT === 'branch-deploy';
+const TEST_STORE = 'sdac-agenda-test';
+const TEST_KEY = 'state-v2-test-sdac';
+const TEST_META_KEY = 'state-v2-test-sdac-meta';
+function testState() {
+  return {
+    version: 'v1-notes', dataVersion: CURRENT_DATA_VERSION,
+    updatedAt: '2026-01-01T00:00:00.000Z', events: {
+      '2026-10-19': [{id:'demo-event-1',time:'17:00',title:'TEST - Presentazione corsi',notes:'Evento fittizio',where:'Aula TEST',cat:'corsi',createdAt:'2026-01-01T00:00:00.000Z'}]
+    }, todos: [], notes: {items:[],currentId:null,draftTitle:'',draftBody:'',listOpen:true,editorOpen:false,favoritesOnly:false}, contacts:[],
+    academy: {activeYear:'2026/2027',years:{'2026/2027':{
+      courses:[{id:'demo-regia',name:'Regia (TEST)',icon:'🎬',weekday:4,startTime:'17:00',endTime:'19:00',firstDate:'2026-10-22',fee:1000,lessonTarget:10,teacherName:'Docente TEST',teacherEmails:[],lessons:[]}],
+      students:[{id:'demo-student-1',firstName:'Studente',lastName:'Dimostrativo',email:'studente.test@example.invalid',phone:'',notes:'Solo dati fittizi',courseIds:['demo-regia'],finance:{enrollments:{'demo-regia':{courseFee:1000,depositAmount:0,payments:[],nextDueDate:'',nextDueNote:'',notes:'',audit:[]}}}}]
+    }}}, administration:{expenses:[],otherIncome:[],notes:''}
+  };
+}
 
 function safeKey(s) {
   return String(s || "").replace(/[^a-zA-Z0-9_-]/g, "_");
@@ -366,17 +385,32 @@ export default async (req, context) => {
     }, 403);
   }
 
-  const store = getStore("sdac-agenda");
+  if (!IS_PRODUCTION && !IS_TEST) return json({ok:false,error:'Ambiente Netlify non riconosciuto: accesso ai dati disabilitato'},503);
+  const store = getStore({name: IS_TEST ? TEST_STORE : 'sdac-agenda', consistency:'strong'});
+  const stateKey = IS_TEST ? TEST_KEY : SHARED_STATE_KEY;
+  const metaKey = IS_TEST ? TEST_META_KEY : SHARED_META_KEY;
+  async function loadForContext() {
+    if (IS_PRODUCTION) return loadSharedOrMigrate(store,user);
+    let data = await getJsonIfPresent(store, TEST_KEY);
+    if (!data) {
+      // Seed only a dedicated test key, never read a production key.
+      const seed = testState();
+      await store.setJSON(TEST_KEY, seed, {onlyIfNew:true});
+      data = await getJsonIfPresent(store, TEST_KEY);
+    }
+    return {data,key:TEST_KEY,migratedFrom:null};
+  }
 
   try {
     if (req.method === "GET") {
-      const shared = await loadSharedOrMigrate(store, user);
+      const shared = await loadForContext();
       return json({
         ok: true,
         data: projectStateForRole(shared.data, role, user),
         updatedAt: shared.data?.updatedAt || null,
-        key: SHARED_STATE_KEY,
+        key: stateKey,
         shared: true,
+        environment: IS_TEST ? "TEST" : "PRODUZIONE",
         role,
         migratedFrom: shared.migratedFrom,
         email: user.email || null
@@ -405,7 +439,7 @@ export default async (req, context) => {
         return json({ ok: false, error: "Invalid state payload" }, 400);
       }
 
-      const shared = await loadSharedOrMigrate(store, user);
+      const shared = await loadForContext();
       const current = shared.data;
 
       // Reject unverified writes and require an exact base revision.
@@ -424,7 +458,7 @@ export default async (req, context) => {
             error: "Remote state is newer than the client base state",
             message: "Il cloud contiene modifiche piu recenti. Aggiorna prima di salvare.",
             remoteUpdatedAt: current?.updatedAt || null,
-            key: SHARED_STATE_KEY,
+            key: stateKey,
             data: projectStateForRole(current, role, user)
           }, 409);
         }
@@ -454,10 +488,11 @@ export default async (req, context) => {
       await store.setJSON(snapshotKey,{state:current,savedAtUTC:new Date().toISOString(),snapshotId});
       const snapshotCheck=await store.get(snapshotKey,{type:"json",consistency:"strong"});
       if(snapshotCheck?.snapshotId!==snapshotId || JSON.stringify(snapshotCheck?.state)!==JSON.stringify(current)) return json({ok:false,error:"Verifica backup preventivo non riuscita; salvataggio bloccato"},500);
-      await store.setJSON(SHARED_STATE_KEY, nextState);
-      await store.setJSON(SHARED_META_KEY, {
-        key: SHARED_STATE_KEY,
+      await store.setJSON(stateKey, nextState);
+      await store.setJSON(metaKey, {
+        key: stateKey,
         shared: true,
+        environment: IS_TEST ? "TEST" : "PRODUZIONE",
         lastEditorEmail: user.email || null,
         lastEditorRole: role,
         updatedAtUTC: nextState.updatedAt
@@ -466,8 +501,9 @@ export default async (req, context) => {
       return json({
         ok: true,
         updatedAt: nextState.updatedAt,
-        key: SHARED_STATE_KEY,
+        key: stateKey,
         shared: true,
+        environment: IS_TEST ? "TEST" : "PRODUZIONE",
         role
       });
     }

@@ -19,6 +19,7 @@
   var accountLoginForm = document.getElementById("accountLoginForm");
   var accountLoginEmail = document.getElementById("accountLoginEmail");
   var accountLoginPassword = document.getElementById("accountLoginPassword");
+  var toggleLoginPassword = document.getElementById("toggleLoginPassword");
   var accountRecentEmails = document.getElementById("accountRecentEmails");
   var btnAccountLogin = document.getElementById("btnAccountLogin");
   var btnAccountRecover = document.getElementById("btnAccountRecover");
@@ -314,6 +315,8 @@
     accountOverlay.style.display = "none";
     accountOverlay.setAttribute("aria-hidden", "true");
     setAccountMessage("", "info");
+    if(accountLoginPassword) accountLoginPassword.type = "password";
+    if(toggleLoginPassword){ toggleLoginPassword.setAttribute("aria-pressed", "false"); toggleLoginPassword.setAttribute("aria-label", "Mostra password"); toggleLoginPassword.title = "Mostra password"; }
   }
 
   function isAccountModalOpen(){
@@ -369,6 +372,7 @@
       callAgendaHook("onIdentityLogin", user);
       renderAccountModal();
       refreshLoginBtn();
+      if(role !== "none" && user){ closeAccountModal(); }
     }).catch(function(error){
       var msg = (error && ((error.json && error.json.error_description) || (error.json && error.json.msg) || error.message)) || "Accesso non riuscito.";
       setAccountMessage(msg, "error");
@@ -551,6 +555,13 @@
       loginBtn.addEventListener("click", function(){ openAccountModal(); });
     }
     if(closeAccountBtn) closeAccountBtn.addEventListener("click", closeAccountModal);
+    if(toggleLoginPassword && accountLoginPassword) toggleLoginPassword.addEventListener("click", function(){
+      var visible = accountLoginPassword.type === "password";
+      accountLoginPassword.type = visible ? "text" : "password";
+      toggleLoginPassword.setAttribute("aria-pressed", visible ? "true" : "false");
+      toggleLoginPassword.setAttribute("aria-label", visible ? "Nascondi password" : "Mostra password");
+      toggleLoginPassword.title = visible ? "Nascondi password" : "Mostra password";
+    });
     if(accountLoginForm) accountLoginForm.addEventListener("submit", function(ev){ ev.preventDefault(); handleAccountLogin(); });
     else if(btnAccountLogin) btnAccountLogin.addEventListener("click", handleAccountLogin);
     if(btnAccountRecover) btnAccountRecover.addEventListener("click", handleAccountRecovery);
