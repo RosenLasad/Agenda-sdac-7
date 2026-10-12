@@ -35,7 +35,8 @@ function summary(state) {
     updatedAt:state?.updatedAt||null};
 }
 export default async (req,ctx) => {
-  if(CONTEXT!=="production") return respond({ok:false,error:"Operazione consentita esclusivamente in produzione."},403);
+  const runtimeContext = String(ctx?.deploy?.context || CONTEXT).toLowerCase();
+  if(runtimeContext!=="production") return respond({ok:false,error:"Operazione consentita esclusivamente in produzione.",context:runtimeContext||"unknown"},403);
   const user=(await getUser().catch(()=>null))||contextUser(ctx);
   if(!user) return respond({ok:false,error:"Accesso richiesto."},401);
   if(!roles(user).includes("admin")) return respond({ok:false,error:"Solo Admin."},403);

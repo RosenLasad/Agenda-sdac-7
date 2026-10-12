@@ -6,9 +6,14 @@ const SHARED_META_KEY = "state-v2-shared-sdac-meta";
 const ALLOWED_ROLES = new Set(["admin", "socio", "docente", "studente"]);
 const CURRENT_DATA_VERSION = 3;
 // FAIL CLOSED: previews must never use or migrate the production store.
-const DEPLOY_CONTEXT = process.env.CONTEXT || process.env.NETLIFY_CONTEXT || '';
-const IS_PRODUCTION = DEPLOY_CONTEXT === 'production';
-const IS_TEST = DEPLOY_CONTEXT === 'deploy-preview' || DEPLOY_CONTEXT === 'branch-deploy';
+// Netlify supplies the deploy context on the function invocation.
+// Environment variables are a fallback only, not the sole source.
+function deploymentMode(context) {
+  const value = String(context?.deploy?.context || process.env.CONTEXT || process.env.NETLIFY_CONTEXT || '').toLowerCase();
+  if (value === 'production') return 'production';
+  if (value === 'deploy-preview' || value === 'branch-deploy') return 'test';
+  return 'unknown';
+}
 const TEST_STORE = 'sdac-agenda-test';
 const TEST_KEY = 'state-v2-test-sdac';
 const TEST_META_KEY = 'state-v2-test-sdac-meta';
@@ -408,7 +413,10 @@ export default async (req, context) => {
     }, 403);
   }
 
-  if (!IS_PRODUCTION && !IS_TEST) return json({ok:false,error:'Ambiente Netlify non riconosciuto: accesso ai dati disabilitato'},503);
+  const mode = deploymentMode(context);
+  const IS_PRODUCTION = mode === 'production';
+  const IS_TEST = mode === 'test';
+  if (!IS_PRODUCTION && !IS_TEST) return json({ok:false,error:'Contesto Netlify non riconosciuto: accesso ai dati disabilitato. Verificare il deploy ufficiale.',environment:'SCONOSCIUTO'},503);
   const store = getStore({name: IS_TEST ? TEST_STORE : 'sdac-agenda', consistency:'strong'});
   const stateKey = IS_TEST ? TEST_KEY : SHARED_STATE_KEY;
   const metaKey = IS_TEST ? TEST_META_KEY : SHARED_META_KEY;
