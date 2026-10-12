@@ -113,8 +113,8 @@
     if(role === "docente"){
       return {
         title: "Accesso Docente",
-        text: "Puoi usare Calendario, Oggi, Cloud e il Registro dei corsi associati alla tua email. Taccuino, Rubrica, Studenti, Impostazioni e aree amministrative non sono disponibili.",
-        summary: "Calendario · Oggi · Corsi assegnati · Registro lezioni · Cloud"
+        text: "Puoi usare Oggi, Cloud, Corsi assegnati e consultare le schede degli studenti iscritti ai tuoi corsi. Calendario, Taccuino, Rubrica, Impostazioni e Amministrazione non sono disponibili.",
+        summary: "Oggi · Corsi assegnati · Studenti dei propri corsi · Registro lezioni · Cloud"
       };
     }
     return {
