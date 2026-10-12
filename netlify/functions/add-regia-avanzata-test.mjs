@@ -63,10 +63,14 @@ export default async (req,ctx) => {
     next.academy.years["2026/2027"].courses.push({...COURSE,teacherEmails:[...COURSE.teacherEmails],lessons:[]});
     next.updatedAt=now;
     const result=await store.setJSON(STATE_KEY,next,{onlyIfMatch:entry.etag});
-    if(result?.modified!==true) return respond({ok:false,error:"Archivio cambiato durante il salvataggio. Nessuna sovrascrittura effettuata; verifica i dati.",backupKey},409);
+    // Netlify may omit or vary the `modified` flag; verify the stored content instead.
+    // An explicit false means the ETag condition failed: do not claim a successful write.
+    if(result?.modified===false) return respond({ok:false,error:"L'archivio TEST è cambiato durante l'operazione. Nessuna sostituzione eseguita: ripeti Verifica archivio.",backupKey},409);
     const verify=await store.get(STATE_KEY,{type:"json",consistency:"strong"});
-    if(!verify || !summary(verify).alreadyPresent || summary(verify).students!==summary(current).students || summary(verify).courses!==summary(current).courses+1)
-      return respond({ok:false,error:"Verifica successiva al salvataggio non superata: controllare il backup prima di ulteriori azioni.",backupKey},500);
+    const beforeIds=current.academy.years["2026/2027"].students.map(s=>s.id).sort();
+    const afterIds=(verify?.academy?.years?.["2026/2027"]?.students||[]).map(s=>s.id).sort();
+    if(!verify || verify.updatedAt!==now || !summary(verify).alreadyPresent || summary(verify).students!==summary(current).students || summary(verify).courses!==summary(current).courses+1 || JSON.stringify(beforeIds)!==JSON.stringify(afterIds))
+      return respond({ok:false,error:"Verifica successiva al salvataggio non superata: controllare l'archivio TEST prima di ulteriori azioni.",backupKey},500);
     return respond({ok:true,added:true,backupKey,...summary(verify)});
   } catch(e) { return respond({ok:false,error:"Operazione interrotta: "+String(e?.message||e)},500); }
 };
