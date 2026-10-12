@@ -553,7 +553,16 @@
       };
     }
 
+    // Gli eventi Identity forniscono l'utente definitivo anche quando
+    // currentUser() non e ancora aggiornato durante un cambio account.
+    var identityEventUser = null;
+    var identityEventReceived = false;
+    function setIdentitySessionUser(user){
+      identityEventReceived = true;
+      identityEventUser = user || null;
+    }
     function getIdentityUser(){
+      if(identityEventReceived) return identityEventUser;
       try{
         return window.netlifyIdentity && window.netlifyIdentity.currentUser && window.netlifyIdentity.currentUser();
       }catch(e){
@@ -785,11 +794,7 @@
     var REMOTE_SYNC_POLL_MS = 10000;
 
     function isLoggedIn(){
-      try{
-        return !!(window.netlifyIdentity && window.netlifyIdentity.currentUser && window.netlifyIdentity.currentUser());
-      }catch(e){
-        return false;
-      }
+      return !!getIdentityUser();
     }
 
     function formatCloudDateTime(value){
@@ -4167,9 +4172,15 @@ if("serviceWorker" in navigator){
 
 function switchStateForCurrentSession(){
   try{
+    // Mai riutilizzare la vista rimasta attiva per l'account precedente.
+    // La navigazione completa viene ricostruita dopo l'applicazione del ruolo.
+    currentView = "calendar";
+    todayViewOffset = 0;
+    administrationActiveSection = null;
     state = loadState();
     syncNotesUiFromState();
     renderAll();
+    setView("calendar", true);
     updateStorageStatus(true);
   }catch(e){
     console.warn("Cambio sessione non riuscito:", e);
@@ -4178,6 +4189,7 @@ function switchStateForCurrentSession(){
 
 window.AgendaApp = {
   onIdentityInit: function(user){
+    setIdentitySessionUser(user);
     resetCloudSession();
     applyRolePermissions(user);
     switchStateForCurrentSession();
@@ -4195,6 +4207,7 @@ window.AgendaApp = {
     }
   },
   onIdentityLogin: function(user){
+    setIdentitySessionUser(user);
     resetCloudSession();
     applyRolePermissions(user);
     switchStateForCurrentSession();
@@ -4209,6 +4222,7 @@ window.AgendaApp = {
     }
   },
   onIdentityLogout: function(){
+    setIdentitySessionUser(null);
     resetCloudSession();
     remoteConflictPending = false;
     remoteLastKnownUpdatedAt = null;

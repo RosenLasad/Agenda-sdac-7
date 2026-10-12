@@ -53,7 +53,14 @@
     }catch(e){}
   }
 
+  var identityEventUser = null;
+  var identityEventReceived = false;
+  function rememberIdentitySession(user){
+    identityEventReceived = true;
+    identityEventUser = user || null;
+  }
   function getIdentityUser(){
+    if(identityEventReceived) return identityEventUser;
     try{
       return window.netlifyIdentity && window.netlifyIdentity.currentUser && window.netlifyIdentity.currentUser();
     }catch(e){
@@ -558,6 +565,7 @@
     }
 
     window.netlifyIdentity.on("init", function(user){
+      rememberIdentitySession(user);
       refreshLoginBtn();
       renderAccountModal();
       if(pendingAuthFlow){
@@ -569,6 +577,7 @@
     });
 
     window.netlifyIdentity.on("login", function(user){
+      rememberIdentitySession(user);
       if(pendingAuthFlow) return;
       refreshLoginBtn();
       renderAccountModal();
@@ -577,6 +586,7 @@
     });
 
     window.netlifyIdentity.on("logout", function(){
+      rememberIdentitySession(null);
       if(pendingAuthFlow) return;
       refreshLoginBtn();
       renderAccountModal();
