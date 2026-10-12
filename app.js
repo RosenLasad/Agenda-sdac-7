@@ -772,6 +772,9 @@
     var remoteSaveTimer = null;
     var remotePullTimer = null;
     var remoteSyncInFlight = false;
+    var remoteSaveInFlight = false;
+    var cloudSessionGeneration = 0;
+    var cloudSessionUserKey = null;
     var remotePollHandle = null;
     var remoteLastKnownUpdatedAt = null;
     var remoteLastCheckedAt = null;
@@ -955,10 +958,39 @@
       setCloudButtonState(kind);
     }
 
+    function cloudSessionIsCurrent(generation, userKey){
+      return generation === cloudSessionGeneration &&
+        userKey === getCurrentCloudUserKey() && isLoggedIn();
+    }
+
+    function resetCloudSession(){
+      cloudSessionGeneration++;
+      cloudSessionUserKey = isLoggedIn() ? getCurrentCloudUserKey() : null;
+      stopRemotePolling();
+      if(remoteSaveTimer){ clearTimeout(remoteSaveTimer); remoteSaveTimer = null; }
+      if(remotePullTimer){ clearTimeout(remotePullTimer); remotePullTimer = null; }
+      remoteSyncInFlight = false;
+      remoteSaveInFlight = false;
+      remoteConflictPending = false;
+      remoteLastKnownUpdatedAt = null;
+      remoteLastCheckedAt = null;
+      setCloudWriteLock(false);
+    }
+
+    async function cloudAuthorizationHeaders(){
+      var user = getIdentityUser();
+      if(!user || typeof user.jwt !== "function") throw new Error("Sessione Identity non disponibile");
+      var token = await user.jwt();
+      if(!token) throw new Error("Token Identity non disponibile");
+      return { "Authorization": "Bearer " + token };
+    }
+
     async function loadRemoteEnvelope(){
+      var headers = await cloudAuthorizationHeaders();
       var res = await fetch("/.netlify/functions/agenda", {
         method:"GET",
         credentials:"same-origin",
+        headers:headers,
         cache:"no-store"
       });
       if(res.status === 401) return { ok:false, unauthorized:true, data:null };
@@ -969,10 +1001,12 @@
     }
 
     async function saveRemoteState(payload){
+      var headers = await cloudAuthorizationHeaders();
+      headers["content-type"] = "application/json";
       var res = await fetch("/.netlify/functions/agenda", {
         method:"PUT",
         credentials:"same-origin",
-        headers: { "content-type":"application/json" },
+        headers: headers,
         body: JSON.stringify({
           state: payload,
           baseUpdatedAt: remoteLastKnownUpdatedAt || null
@@ -981,7 +1015,11 @@
 
       var obj = null;
       try{ obj = await res.json(); }catch(e){ obj = null; }
-      if(res.status === 401) return { ok:false, unauthorized:true };
+      if(res.status === 401){
+        var unauthorized = new Error("Sessione cloud scaduta: effettua nuovamente l'accesso.");
+        unauthorized.unauthorized = true;
+        throw unauthorized;
+      }
       if(res.status === 403){
         var forbidden = new Error((obj && (obj.message || obj.error)) || "Ruolo SDAC non autorizzato");
         forbidden.forbidden = true;
@@ -1037,7 +1075,11 @@
       renderAll();
       updateStorageStatus(true);
       if(needsSchemaUpgrade){
-        setTimeout(function(){ scheduleRemoteSave(true, true, true); }, 0);
+        var generation = cloudSessionGeneration;
+        var userKey = getCurrentCloudUserKey();
+        setTimeout(function(){
+          if(cloudSessionIsCurrent(generation, userKey)) scheduleRemoteSave(true, true, true);
+        }, 0);
       }
       return true;
     }
@@ -1055,17 +1097,20 @@
         setCloudStatus("forbidden");
         return;
       }
-      if(remoteSyncInFlight){
+      if(remoteSyncInFlight || remoteSaveInFlight){
         if(mandatory) setCloudStatus("locked");
         return;
       }
 
+      var generation = cloudSessionGeneration;
+      var userKey = getCurrentCloudUserKey();
       if(mandatory) setCloudWriteLock(true, remoteConflictPending ? "conflict" : "sync");
       remoteSyncInFlight = true;
       setCloudStatus(mandatory ? "locked" : "syncing");
 
       try{
         var envelope = await loadRemoteEnvelope();
+        if(!cloudSessionIsCurrent(generation, userKey)) return;
         if(envelope && envelope.unauthorized){
           remoteConflictPending = false;
           setCloudWriteLock(false);
@@ -1164,6 +1209,7 @@
           setCloudStatus("ok");
         }
       }catch(e){
+        if(!cloudSessionIsCurrent(generation, userKey)) return;
         console.warn("Sync cloud fallita:", e);
         if(mandatory){
           setCloudWriteLock(true, remoteConflictPending ? "conflict" : "sync");
@@ -1172,7 +1218,7 @@
           setCloudStatus("error");
         }
       }finally{
-        remoteSyncInFlight = false;
+        if(generation === cloudSessionGeneration) remoteSyncInFlight = false;
       }
     }
 
@@ -1187,14 +1233,19 @@
         setCloudStatus("locked", "\uD83D\uDD04 Cloud: attendo l'aggiornamento iniziale prima di salvare.");
         return;
       }
+      var generation = cloudSessionGeneration;
+      var userKey = getCurrentCloudUserKey();
       if(remoteSaveTimer) clearTimeout(remoteSaveTimer);
       remoteSaveTimer = setTimeout(function(){
+        if(!cloudSessionIsCurrent(generation, userKey)) return;
         remoteSaveTimer = null;
         var payload = normalizeLoadedState(JSON.parse(JSON.stringify(state)));
         payload.updatedAt = new Date().toISOString();
         state.updatedAt = payload.updatedAt;
         setCloudStatus("syncing", "\uD83D\uDD04 Cloud: salvataggio in corso...");
+        remoteSaveInFlight = true;
         saveRemoteState(payload).then(function(result){
+          if(!cloudSessionIsCurrent(generation, userKey)) return;
           var savedAt = (result && result.updatedAt) || payload.updatedAt;
           state.updatedAt = savedAt;
           remoteLastKnownUpdatedAt = savedAt;
@@ -1206,6 +1257,7 @@
           if(unlockAfterSave) setCloudWriteLock(false);
           setCloudStatus("ok");
         }).catch(function(e){
+          if(!cloudSessionIsCurrent(generation, userKey)) return;
           console.warn("Salvataggio cloud fallito:", e);
           if(e && e.forbidden){
             setCloudWriteLock(false);
@@ -1220,6 +1272,8 @@
             if(unlockAfterSave) setCloudWriteLock(false);
             setCloudStatus("error");
           }
+        }).finally(function(){
+          if(generation === cloudSessionGeneration) remoteSaveInFlight = false;
         });
       }, immediate ? 0 : REMOTE_SYNC_DEBOUNCE_MS);
     }
@@ -1228,8 +1282,8 @@
       stopRemotePolling();
       if(!isLoggedIn() || !hasAuthorizedCloudRole()) return;
       remotePollHandle = setInterval(function(){
-        if(document.visibilityState === "visible" && !remoteSyncInFlight && !remoteWriteLocked){
-          scheduleRemoteRefresh(false, false);
+        if(document.visibilityState === "visible" && !remoteSyncInFlight && !remoteSaveInFlight && !remoteConflictPending && !remoteSaveTimer){
+          scheduleRemoteRefresh(false, remoteWriteLocked);
         }
       }, REMOTE_SYNC_POLL_MS);
     }
@@ -4124,6 +4178,7 @@ function switchStateForCurrentSession(){
 
 window.AgendaApp = {
   onIdentityInit: function(user){
+    resetCloudSession();
     applyRolePermissions(user);
     switchStateForCurrentSession();
     applyRolePermissions(user);
@@ -4140,6 +4195,7 @@ window.AgendaApp = {
     }
   },
   onIdentityLogin: function(user){
+    resetCloudSession();
     applyRolePermissions(user);
     switchStateForCurrentSession();
     applyRolePermissions(user);
@@ -4153,9 +4209,7 @@ window.AgendaApp = {
     }
   },
   onIdentityLogout: function(){
-    stopRemotePolling();
-    if(remoteSaveTimer){ clearTimeout(remoteSaveTimer); remoteSaveTimer = null; }
-    if(remotePullTimer){ clearTimeout(remotePullTimer); remotePullTimer = null; }
+    resetCloudSession();
     remoteConflictPending = false;
     remoteLastKnownUpdatedAt = null;
     remoteLastCheckedAt = null;
@@ -4166,7 +4220,7 @@ window.AgendaApp = {
     setCloudStatus("idle", "\u2601\uFE0F Cloud: non attivo");
   },
   requestSoftSync: function(){
-    if(hasAuthorizedCloudRole()) scheduleRemoteRefresh(false, false);
+    if(hasAuthorizedCloudRole()) scheduleRemoteRefresh(false, remoteWriteLocked && !remoteConflictPending);
     else if(isLoggedIn()) setCloudStatus("forbidden");
   }
 };

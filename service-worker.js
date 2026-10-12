@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-agenda-shell-v19-course-detail-page";
+const CACHE_NAME = "sdac-agenda-shell-v20-cloud-session-fix";
 
 const APP_SHELL = [
   "./",

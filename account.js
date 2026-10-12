@@ -356,7 +356,8 @@
       }else{
         setAccountMessage("Accesso effettuato come " + getRoleLabel(role) + ".", "success");
       }
-      callAgendaHook("onIdentityLogin", user);
+      // L'evento Identity "login" inizializza gia la sessione e il cloud.
+      // Non richiamarlo qui: causerebbe una seconda inizializzazione concorrente.
       renderAccountModal();
       refreshLoginBtn();
     }).catch(function(error){
