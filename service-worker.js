@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-agenda-shell-v21-account-switch-fix";
+const CACHE_NAME = "sdac-agenda-shell-v22-safe-session-recovery";
 
 const APP_SHELL = [
   "./",

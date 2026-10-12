@@ -783,6 +783,8 @@
     var remoteSyncInFlight = false;
     var remoteSaveInFlight = false;
     var cloudSessionGeneration = 0;
+    var cloudSessionVerified = false;
+    var identityTransitionKey = null;
     var cloudSessionUserKey = null;
     var remotePollHandle = null;
     var remoteLastKnownUpdatedAt = null;
@@ -970,6 +972,7 @@
 
     function resetCloudSession(){
       cloudSessionGeneration++;
+      cloudSessionVerified = false;
       cloudSessionUserKey = isLoggedIn() ? getCurrentCloudUserKey() : null;
       stopRemotePolling();
       if(remoteSaveTimer){ clearTimeout(remoteSaveTimer); remoteSaveTimer = null; }
@@ -991,7 +994,9 @@
     }
 
     async function loadRemoteEnvelope(){
+      var generation = cloudSessionGeneration;
       var headers = await cloudAuthorizationHeaders();
+      if(generation !== cloudSessionGeneration) throw new Error("Sessione cambiata prima della richiesta cloud");
       var res = await fetch("/.netlify/functions/agenda", {
         method:"GET",
         credentials:"same-origin",
@@ -1006,7 +1011,9 @@
     }
 
     async function saveRemoteState(payload){
+      var generation = cloudSessionGeneration;
       var headers = await cloudAuthorizationHeaders();
+      if(generation !== cloudSessionGeneration || !cloudSessionVerified) throw new Error("Sessione non verificata per il salvataggio cloud");
       headers["content-type"] = "application/json";
       var res = await fetch("/.netlify/functions/agenda", {
         method:"PUT",
@@ -1079,13 +1086,7 @@
       syncNotesUiFromState();
       renderAll();
       updateStorageStatus(true);
-      if(needsSchemaUpgrade){
-        var generation = cloudSessionGeneration;
-        var userKey = getCurrentCloudUserKey();
-        setTimeout(function(){
-          if(cloudSessionIsCurrent(generation, userKey)) scheduleRemoteSave(true, true, true);
-        }, 0);
-      }
+      // Le migrazioni di schema non devono mai fare PUT automatici al login.
       return true;
     }
 
@@ -1131,88 +1132,28 @@
 
         remoteLastCheckedAt = new Date().toISOString();
         var remote = envelope ? envelope.data : null;
-        var localStamp = getStateUpdatedAt(state);
-        var remoteStamp = getStateUpdatedAt(remote);
-        var storedBaseUpdatedAt = getStoredRemoteBaseUpdatedAt();
-        var baseStamp = storedBaseUpdatedAt ? Date.parse(storedBaseUpdatedAt) : NaN;
-        baseStamp = Number.isFinite(baseStamp) ? baseStamp : 0;
-        var localExists = hasStoredLocalState();
-
+        // In un nuovo accesso il server e la sola fonte autorevole.
+        // Non inviare mai automaticamente un archivio locale al cloud.
         if(remote && typeof remote === "object"){
           remoteLastKnownUpdatedAt = remote.updatedAt || null;
-
-          if(forceRemoteApply){
-            applyRemoteState(remote);
-            setCloudWriteLock(false);
-            setCloudStatus("ok");
+          if(!hasLocalData(remote) && hasLocalData(state)){
+            cloudSessionVerified = false;
+            setCloudWriteLock(true, "sync");
+            setCloudStatus("locked", "Il cloud risulta vuoto ma esiste una copia locale. Salvataggi disabilitati per sicurezza.");
             return;
           }
-
-          // Se la copia locale non esiste piu, il cloud e l'unica sorgente
-          // persistita disponibile: ripristinala anche se il token base esiste.
-          if(!localExists){
-            applyRemoteState(remote);
-            setCloudWriteLock(false);
-            setCloudStatus("ok");
-            return;
-          }
-
-          var localChangedSinceBase = !!(baseStamp && localExists && localStamp > baseStamp);
-          var remoteChangedSinceBase = !!(baseStamp && remoteStamp > baseStamp);
-
-          if(localChangedSinceBase && remoteChangedSinceBase && localStamp !== remoteStamp){
-            remoteConflictPending = true;
-            setCloudWriteLock(true, "conflict");
-            setCloudStatus("conflict", "\u26A0\uFE0F Cloud e dispositivo hanno modifiche diverse. Premi il pulsante cloud per caricare la versione cloud prima di continuare.");
-            return;
-          }
-
-          if(baseStamp){
-            if(remoteChangedSinceBase && !localChangedSinceBase){
-              applyRemoteState(remote);
-              setCloudWriteLock(false);
-              setCloudStatus("ok");
-              return;
-            }
-
-            if(localChangedSinceBase && !remoteChangedSinceBase){
-              setCloudStatus("syncing", "\uD83D\uDD04 Cloud: invio delle modifiche locali in corso...");
-              scheduleRemoteSave(true, true, true);
-              return;
-            }
-          }else{
-            // Prima sincronizzazione dopo l'aggiornamento: non sovrascrivere
-            // mai una copia locale piu recente soltanto perche il pull e obbligatorio.
-            if(!localExists || remoteStamp > localStamp){
-              applyRemoteState(remote);
-              setCloudWriteLock(false);
-              setCloudStatus("ok");
-              return;
-            }
-
-            if(localStamp > remoteStamp){
-              setCloudStatus("syncing", "\uD83D\uDD04 Cloud: copia locale piu recente, aggiornamento cloud in corso...");
-              scheduleRemoteSave(true, true, true);
-              return;
-            }
-          }
-
-          if(remote.updatedAt) setStoredRemoteBaseUpdatedAt(remote.updatedAt);
-          remoteConflictPending = false;
+          applyRemoteState(remote);
+          cloudSessionVerified = true;
           setCloudWriteLock(false);
           setCloudStatus("ok");
           return;
         }
-
+        // Cloud assente: proteggere sia il server sia le copie locali.
+        // Nessuna creazione automatica di un archivio vuoto.
         remoteLastKnownUpdatedAt = null;
-        if(localExists || hasLocalData(state)){
-          setCloudStatus("syncing", "\uD83D\uDD04 Cloud: primo salvataggio in corso...");
-          scheduleRemoteSave(true, true, true);
-        }else{
-          remoteConflictPending = false;
-          setCloudWriteLock(false);
-          setCloudStatus("ok");
-        }
+        cloudSessionVerified = false;
+        setCloudWriteLock(true, "sync");
+        setCloudStatus("locked", "Archivio cloud non trovato. Salvataggio disabilitato: verificare il backup prima di procedere.");
       }catch(e){
         if(!cloudSessionIsCurrent(generation, userKey)) return;
         console.warn("Sync cloud fallita:", e);
@@ -1229,6 +1170,11 @@
 
     function scheduleRemoteSave(immediate, allowWhileLocked, unlockAfterSave){
       if(!isLoggedIn() || !hasAuthorizedCloudRole()) return;
+      if(!cloudSessionVerified || !remoteLastKnownUpdatedAt){
+        setCloudWriteLock(true, "sync");
+        setCloudStatus("locked", "Archivio cloud non verificato: salvataggio impedito per sicurezza.");
+        return;
+      }
       if(remoteConflictPending && !allowWhileLocked){
         setCloudWriteLock(true, "conflict");
         setCloudStatus("conflict", "\u26A0\uFE0F Salvataggio bloccato: aggiorna prima la versione cloud dal pulsante cloud.");
@@ -4189,6 +4135,7 @@ function switchStateForCurrentSession(){
 
 window.AgendaApp = {
   onIdentityInit: function(user){
+    identityTransitionKey = user ? String(user.id || user.sub || user.email || "") + ":" + getRoleFromUser(user) : null;
     setIdentitySessionUser(user);
     resetCloudSession();
     applyRolePermissions(user);
@@ -4207,6 +4154,10 @@ window.AgendaApp = {
     }
   },
   onIdentityLogin: function(user){
+    if(!user) return;
+    var nextIdentityKey = String(user.id || user.sub || user.email || "") + ":" + getRoleFromUser(user);
+    if(identityTransitionKey === nextIdentityKey && isLoggedIn()) return;
+    identityTransitionKey = nextIdentityKey;
     setIdentitySessionUser(user);
     resetCloudSession();
     applyRolePermissions(user);
@@ -4222,6 +4173,7 @@ window.AgendaApp = {
     }
   },
   onIdentityLogout: function(){
+    identityTransitionKey = null;
     setIdentitySessionUser(null);
     resetCloudSession();
     remoteConflictPending = false;

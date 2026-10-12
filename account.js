@@ -363,8 +363,10 @@
       }else{
         setAccountMessage("Accesso effettuato come " + getRoleLabel(role) + ".", "success");
       }
-      // L'evento Identity "login" inizializza gia la sessione e il cloud.
-      // Non richiamarlo qui: causerebbe una seconda inizializzazione concorrente.
+      // Gotrue login() non emette sempre l'evento widget "login".
+      // La hook e idempotente: se l'evento e gia arrivato non reinizializza.
+      rememberIdentitySession(user);
+      callAgendaHook("onIdentityLogin", user);
       renderAccountModal();
       refreshLoginBtn();
     }).catch(function(error){
