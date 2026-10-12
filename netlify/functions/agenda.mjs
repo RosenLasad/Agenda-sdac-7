@@ -408,6 +408,10 @@ export default async (req, context) => {
       const shared = await loadSharedOrMigrate(store, user);
       const current = shared.data;
 
+      // Reject unverified writes and require an exact base revision.
+      if (!current || !hasConflictToken || !baseUpdatedAt || baseUpdatedAt !== current.updatedAt) {
+        return json({ok:false,error:"Archivio non verificato o versione differente; ricaricare il Cloud",remoteUpdatedAt:current?.updatedAt||null},409);
+      }
       if (hasConflictToken) {
         const remoteMillis = getUpdatedAtMillis(current);
         const baseMillis = baseUpdatedAt ? Date.parse(baseUpdatedAt) : 0;
@@ -432,8 +436,22 @@ export default async (req, context) => {
       }
       const nextState = mergeStateForRole(current, sanitizedPayload, role, user);
       nextState.dataVersion = Math.max(Number(nextState.dataVersion || 0), CURRENT_DATA_VERSION);
+      // Guard against accidental mass deletion caused by stale/empty clients.
+      const count = (obj) => ({
+        events: Object.values(obj?.events||{}).reduce((n,a)=>n+(Array.isArray(a)?a.length:0),0),
+        students: Object.values(obj?.academy?.years||{}).reduce((n,y)=>n+(y?.students?.length||0),0),
+        courses: Object.values(obj?.academy?.years||{}).reduce((n,y)=>n+(y?.courses?.length||0),0)
+      });
+      const oldCounts=count(current), newCounts=count(nextState);
+      if (Object.keys(oldCounts).some(k => oldCounts[k]>=3 && newCounts[k]<oldCounts[k]*0.5)) {
+        return json({ok:false,error:"Salvataggio bloccato: cancellazione massiva non consentita. Contattare Admin."},409);
+      }
       nextState.updatedAt = new Date().toISOString();
 
+      // Keep a server-side snapshot before each accepted write.
+      const snapshotKey = `before-writes/${new Date().toISOString().replace(/[:.]/g,"-")}-${crypto.randomUUID()}.json`;
+      const snapshot = await store.setJSON(snapshotKey,{state:current,savedAtUTC:new Date().toISOString()});
+      if(!snapshot?.modified) return json({ok:false,error:"Backup preventivo non riuscito"},500);
       await store.setJSON(SHARED_STATE_KEY, nextState);
       await store.setJSON(SHARED_META_KEY, {
         key: SHARED_STATE_KEY,

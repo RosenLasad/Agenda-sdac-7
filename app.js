@@ -982,7 +982,7 @@
       remoteConflictPending = false;
       remoteLastKnownUpdatedAt = null;
       remoteLastCheckedAt = null;
-      setCloudWriteLock(false);
+      setCloudWriteLock(true, "sync");
     }
 
     async function cloudAuthorizationHeaders(){
@@ -1119,13 +1119,15 @@
         if(!cloudSessionIsCurrent(generation, userKey)) return;
         if(envelope && envelope.unauthorized){
           remoteConflictPending = false;
-          setCloudWriteLock(false);
-          setCloudStatus("idle", "\u2601\uFE0F Cloud: accesso richiesto");
+          cloudSessionVerified = false;
+          setCloudWriteLock(true, "sync");
+          setCloudStatus("locked", "Accesso scaduto: dati protetti, effettua un nuovo login.");
           return;
         }
         if(envelope && envelope.forbidden){
           remoteConflictPending = false;
-          setCloudWriteLock(false);
+          cloudSessionVerified = false;
+          setCloudWriteLock(true, "sync");
           setCloudStatus("forbidden");
           return;
         }
@@ -2404,7 +2406,7 @@ if(openTodosBtn){
 
 
     function touchAndSave(){
-      if(isLoggedIn() && remoteWriteLocked){
+      if(!isLoggedIn() || !hasAuthorizedCloudRole() || !cloudSessionVerified || remoteWriteLocked){
         if(remoteConflictPending || remoteWriteLockReason === "conflict"){
           setCloudStatus("conflict", "\u26A0\uFE0F Salvataggi bloccati: premi il pulsante cloud per risolvere il conflitto.");
           window.alert("C'e un conflitto con una versione cloud piu recente. Premi il pulsante cloud per aggiornarla prima di continuare.");
@@ -3237,7 +3239,7 @@ todoActiveList.appendChild(item);
         window.alert(roleRestrictionMessage("settings"));
         return;
       }
-      if(isLoggedIn() && remoteWriteLocked){
+      if(!isLoggedIn() || !hasAuthorizedCloudRole() || !cloudSessionVerified || remoteWriteLocked){
         if(remoteConflictPending || remoteWriteLockReason === "conflict"){
           window.alert("Prima di azzerare l'agenda, risolvi il conflitto dal pulsante cloud. In questo modo il Reset non rischia di sovrascrivere modifiche piu recenti.");
         }else{
@@ -3439,7 +3441,7 @@ todoActiveList.appendChild(item);
     }
 
     function canMutateSchoolData(){
-      if(isLoggedIn() && remoteWriteLocked){ touchAndSave(); return false; }
+      if(!isLoggedIn() || !hasAuthorizedCloudRole() || !cloudSessionVerified || remoteWriteLocked){ touchAndSave(); return false; }
       return true;
     }
 
