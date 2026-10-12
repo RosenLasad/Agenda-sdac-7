@@ -9,7 +9,6 @@ const json = (data, status=200) => new Response(JSON.stringify(data), {status, h
 function roles(user){let r=user?.roles || user?.app_metadata?.roles || user?.appMetadata?.roles || [];return Array.isArray(r)?r.map(x=>String(x).toLowerCase()):[];}
 function summary(s){const years=s?.academy?.years||{};return {updatedAt:s?.updatedAt||null,events:Object.values(s?.events||{}).reduce((a,x)=>a+(Array.isArray(x)?x.length:0),0),students:Object.values(years).reduce((a,y)=>a+(y?.students?.length||0),0),courses:Object.values(years).reduce((a,y)=>a+(y?.courses?.length||0),0)};}
 export default async(req,context)=>{
-  if (process.env.CONTEXT !== "production") return json({error:"Ripristino disabilitato fuori produzione"},403);
   const user=(await getUser().catch(()=>null)) || context?.clientContext?.user || null;
   if(!user || !roles(user).includes("admin")) return json({error:"Solo Admin autenticato"},403);
   if(req.method!=="GET" && req.method!=="POST") return json({error:"Metodo non consentito"},405);
