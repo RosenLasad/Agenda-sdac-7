@@ -84,6 +84,7 @@
     if(roles.indexOf("admin") !== -1) return "admin";
     if(roles.indexOf("socio") !== -1) return "socio";
     if(roles.indexOf("docente") !== -1) return "docente";
+    if(roles.indexOf("studente") !== -1) return "studente";
     return "none";
   }
 
@@ -91,6 +92,7 @@
     if(role === "admin") return "Admin";
     if(role === "socio") return "Socio";
     if(role === "docente") return "Docente";
+    if(role === "studente") return "Studente";
     if(role === "guest") return "Ospite";
     return "Non assegnato";
   }
@@ -117,9 +119,14 @@
         summary: "Oggi · Corsi assegnati · Studenti dei propri corsi · Registro lezioni · Cloud"
       };
     }
+    if(role === "studente") return {
+      title: "Accesso Studente",
+      text: "Puoi consultare soltanto i tuoi corsi e la tua scheda personale. Non puoi modificare i dati.",
+      summary: "I miei corsi · La mia scheda · Cloud (sola lettura)"
+    };
     return {
       title: "Ruolo da assegnare",
-      text: "L'account è autenticato, ma non ha ancora un ruolo SDAC valido. Assegna Admin, Socio o Docente da Netlify e poi effettua di nuovo l'accesso.",
+      text: "L'account è autenticato, ma non ha ancora un ruolo SDAC valido. Assegna Admin, Socio, Docente o Studente da Netlify e poi effettua di nuovo l'accesso.",
       summary: "Accesso limitato finché non viene assegnato un ruolo"
     };
   }
@@ -209,6 +216,7 @@
     if(role === "admin") icon = "🛡️";
     else if(role === "socio") icon = "👥";
     else if(role === "docente") icon = "🎓";
+    else if(role === "studente") icon = "📚";
     else if(role === "none") icon = "⚠️";
 
     var label = getRoleLabel(role);
@@ -277,7 +285,7 @@
         accountUserRole.textContent = getRoleLabel(role);
         accountUserRole.setAttribute("data-role", role);
       }
-      if(accountUserSync) accountUserSync.textContent = (role === "admin" || role === "socio" || role === "docente") ? "Attiva" : "Bloccata";
+      if(accountUserSync) accountUserSync.textContent = (role === "admin" || role === "socio" || role === "docente" || role === "studente") ? "Attiva" : "Bloccata";
       if(accountUserCtaTitle) accountUserCtaTitle.textContent = roleInfo.title;
       if(accountUserCtaText) accountUserCtaText.textContent = roleInfo.text;
       if(accountPermissionSummary) accountPermissionSummary.textContent = roleInfo.summary;
@@ -331,7 +339,7 @@
     }
     var role = getAccountRole(user);
     if(role === "none"){
-      setAccountMessage("Questo account non ha ancora un ruolo SDAC. Assegna Admin, Socio o Docente da Netlify, poi esci e accedi di nuovo.", "error");
+      setAccountMessage("Questo account non ha ancora un ruolo SDAC. Assegna Admin, Socio, Docente o Studente da Netlify, poi esci e accedi di nuovo.", "error");
       return;
     }
     closeAccountModal();

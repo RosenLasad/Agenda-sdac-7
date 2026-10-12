@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-agenda-shell-v24-phase2-preview";
+const CACHE_NAME = "sdac-phase4-v1";
 
 const APP_SHELL = [
   "./",

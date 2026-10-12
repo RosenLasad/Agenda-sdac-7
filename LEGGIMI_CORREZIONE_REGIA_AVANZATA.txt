@@ -1,0 +1,12 @@
+CORREZIONE REGIA AVANZATA - SOLO DEPLOY PREVIEW
+
+1. Carica lo ZIP sul ramo test-agenda, NON sul ramo principale.
+2. Apri l'URL del Deploy Preview seguito da /aggiungi-regia-avanzata-test.html
+3. Accedi come Admin; premi Verifica archivio TEST.
+4. Se alreadyPresent=false, premi Aggiungi corso al TEST e conferma.
+5. Verifica che il riepilogo mostri added=true e courses incrementato di 1.
+6. Riapri l'Agenda TEST, aggiorna la pagina e controlla Corsi.
+
+La sola pubblicazione dei file NON aggiunge Regia Avanzata all'archivio esistente.
+Se il riepilogo presenta un errore, non ripetere alla cieca: conserva il testo dell'errore.
+Non fare merge nel ramo principale.

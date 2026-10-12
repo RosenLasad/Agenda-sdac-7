@@ -578,6 +578,7 @@
       if(roles.indexOf("admin") !== -1) return "admin";
       if(roles.indexOf("socio") !== -1) return "socio";
       if(roles.indexOf("docente") !== -1) return "docente";
+      if(roles.indexOf("studente") !== -1) return "studente";
       return "none";
     }
 
@@ -589,12 +590,13 @@
       if(role === "admin") return true;
       if(role === "socio") return feature === "calendar" || feature === "today" || feature === "notebook" || feature === "contacts" || feature === "courses" || feature === "students" || feature === "administration" || feature === "cloud";
       if(role === "docente") return feature === "today" || feature === "courses" || feature === "students" || feature === "cloud";
+      if(role === "studente") return feature === "courses" || feature === "students" || feature === "cloud";
       return feature === "calendar" || feature === "today";
     }
 
     function hasAuthorizedCloudRole(){
       var role = getCurrentAccessRole();
-      return role === "admin" || role === "socio" || role === "docente";
+      return role === "admin" || role === "socio" || role === "docente" || role === "studente";
     }
 
     function safeLocalUserKey(value){
@@ -612,11 +614,31 @@
       return STORAGE_KEY_PREFIX + getCurrentLocalUserKey();
     }
 
+    function projectAcademyForStudent(academy,email){
+      var source = academy && typeof academy === "object" ? academy : {activeYear:ACADEMIC_YEAR,years:{}};
+      var result = {activeYear:source.activeYear || ACADEMIC_YEAR,years:{}};
+      var target=normalizeEmail(email);
+      Object.keys(source.years||{}).forEach(function(year){
+        var y=source.years[year]||{};
+        var matches=target ? (y.students||[]).filter(function(st){return normalizeEmail(st.email)===target;}) : [];
+        var student=matches.length===1?matches[0]:null;
+        var ids=student?(student.courseIds||[]).map(String):[];
+        var courses=(y.courses||[]).filter(function(c){return ids.indexOf(String(c.id))!==-1;}).map(function(c){return {
+          id:c.id,name:c.name,icon:c.icon,weekday:c.weekday,startTime:c.startTime,endTime:c.endTime,firstDate:c.firstDate,
+          lessonTarget:c.lessonTarget,teacherName:c.teacherName,
+          lessons:(c.lessons||[]).map(function(l){return {date:l.date,startTime:l.startTime,endTime:l.endTime,topic:l.topic||"",notes:l.notes||""};})
+        };});
+        result.years[year]={courses:courses,students:student?[{id:student.id,firstName:student.firstName,lastName:student.lastName,
+          email:student.email,phone:student.phone,notes:"",courseIds:ids,finance:{enrollments:{}}}]:[]};
+      });
+      return result;
+    }
+
     function projectStateForRole(source, role, userEmail){
       var src = normalizeLoadedState(source && typeof source === "object" ? source : defaultState());
       if(role === "admin" || role === "socio") return src;
-      var teacherAcademy = role === "docente" ? projectAcademyForTeacher(src.academy, userEmail || getCurrentUserEmail()) : normalizeAcademyState(null);
-      if(role !== "docente") teacherAcademy.years[teacherAcademy.activeYear] = { courses:[], students:[] };
+      var teacherAcademy = role === "docente" ? projectAcademyForTeacher(src.academy, userEmail || getCurrentUserEmail()) : role === "studente" ? projectAcademyForStudent(src.academy, userEmail || getCurrentUserEmail()) : normalizeAcademyState(null);
+      if(role !== "docente" && role !== "studente") teacherAcademy.years[teacherAcademy.activeYear] = { courses:[], students:[] };
       return normalizeLoadedState({
         version: src.version || "v1-notes",
         dataVersion: src.dataVersion || CURRENT_DATA_VERSION,
@@ -1172,7 +1194,7 @@
     }
 
     function scheduleRemoteSave(immediate, allowWhileLocked, unlockAfterSave){
-      if(!isLoggedIn() || !hasAuthorizedCloudRole()) return;
+      if(getCurrentAccessRole() === "studente" || !isLoggedIn() || !hasAuthorizedCloudRole()) return;
       if(!cloudSessionVerified || !remoteLastKnownUpdatedAt){
         setCloudWriteLock(true, "sync");
         setCloudStatus("locked", "Archivio cloud non verificato: salvataggio impedito per sicurezza.");
@@ -1234,7 +1256,7 @@
 
     function startRemotePolling(){
       stopRemotePolling();
-      if(!isLoggedIn() || !hasAuthorizedCloudRole()) return;
+      if(getCurrentAccessRole() === "studente" || !isLoggedIn() || !hasAuthorizedCloudRole()) return;
       remotePollHandle = setInterval(function(){
         if(document.visibilityState === "visible" && !remoteSyncInFlight && !remoteSaveInFlight && !remoteConflictPending && !remoteSaveTimer){
           scheduleRemoteRefresh(false, remoteWriteLocked);
@@ -1250,7 +1272,7 @@
     }
 
     function scheduleRemoteRefresh(forcePull, mandatory){
-      if(!isLoggedIn() || !hasAuthorizedCloudRole()) return;
+      if(getCurrentAccessRole() === "studente" || !isLoggedIn() || !hasAuthorizedCloudRole()) return;
       if(remotePullTimer) clearTimeout(remotePullTimer);
       remotePullTimer = setTimeout(function(){
         syncFromCloudOrSeed(!!forcePull, !!mandatory);
@@ -1540,7 +1562,7 @@
 
       tabs.forEach(function(tab){
         var view = tab.getAttribute("data-view");
-        if(view === "calendar") { tab.classList.toggle("roleFeatureHidden", currentAccessRole === "docente"); setRoleLockedElement(tab, currentAccessRole === "docente", roleRestrictionMessage("calendar")); }
+        if(view === "calendar") { tab.classList.toggle("roleFeatureHidden", !canCurrentRoleAccess("calendar")); setRoleLockedElement(tab, !canCurrentRoleAccess("calendar"), roleRestrictionMessage("calendar")); }
         else if(view === "notebook") setRoleLockedElement(tab, !notebookAllowed, roleRestrictionMessage("notebook"));
         else if(view === "courses") setRoleLockedElement(tab, !coursesAllowed, roleRestrictionMessage("courses"));
         else if(view === "students") setRoleLockedElement(tab, !studentsAllowed, roleRestrictionMessage("students"));
@@ -1561,10 +1583,12 @@
       var todoPanelCard = todoMiniPanel && todoMiniPanel.closest ? todoMiniPanel.closest(".todoPanelCard") : null;
       if(todoPanelCard) todoPanelCard.classList.toggle("roleFeatureHidden", !notebookAllowed);
 
-      if((currentView === "calendar" && currentAccessRole === "docente") || (currentView === "notebook" && !notebookAllowed) || (currentView === "courses" && !coursesAllowed) || (currentView === "students" && !studentsAllowed) || (currentView === "administration" && !administrationAllowed)){
-        setView(currentAccessRole === "docente" ? "courses" : "calendar", true);
+      if((currentView === "calendar" && (currentAccessRole === "docente" || currentAccessRole === "studente")) || (currentView === "notebook" && !notebookAllowed) || (currentView === "courses" && !coursesAllowed) || (currentView === "students" && !studentsAllowed) || (currentView === "administration" && !administrationAllowed)){
+        setView((currentAccessRole === "docente" || currentAccessRole === "studente") ? "courses" : "calendar", true);
       }
-      if(addStudentBtn) addStudentBtn.hidden = currentAccessRole === "docente";
+      if(addStudentBtn) addStudentBtn.hidden = (currentAccessRole === "docente" || currentAccessRole === "studente");
+      var studentTab=document.querySelector('[data-view="students"] .tabText');
+      if(studentTab) studentTab.textContent=currentAccessRole === "studente" ? "La mia scheda" : "Studenti";
       if(currentView === "courses") renderCourses();
       if(currentView === "students") renderStudents();
       if(currentView === "administration") renderAdministration();
@@ -3296,7 +3320,7 @@ todoActiveList.appendChild(item);
     function enrolledStudents(courseId){ return (getAcademyYear().students || []).filter(function(st){ return (st.courseIds || []).indexOf(courseId) !== -1; }).sort(function(a,b){ return fullStudentName(a).localeCompare(fullStudentName(b), "it"); }); }
     function canEditCourseRegister(course){
       if(currentAccessRole === "admin" || currentAccessRole === "socio") return true;
-      if(currentAccessRole !== "docente" || !course) return false;
+      if((currentAccessRole !== "docente" && currentAccessRole !== "studente") || !course) return false;
       return (course.teacherEmails || []).map(normalizeEmail).indexOf(getCurrentUserEmail()) !== -1;
     }
 
@@ -3313,7 +3337,7 @@ todoActiveList.appendChild(item);
       if(coursesVisibleCount) coursesVisibleCount.textContent = String(courses.length);
       if(coursesStudentCount) coursesStudentCount.textContent = String((year.students || []).length);
       if(coursesRoleHint){
-        coursesRoleHint.textContent = currentAccessRole === "docente" ? "Vedi solo i corsi associati alla tua email docente." : "Seleziona un corso per aprire registro, iscritti e lezioni.";
+        coursesRoleHint.textContent = (currentAccessRole === "docente" || currentAccessRole === "studente") ? "Vedi solo i corsi associati alla tua email docente." : "Seleziona un corso per aprire registro, iscritti e lezioni.";
       }
       if(!courses.length){
         courseGrid.innerHTML = '<div class="schoolEmptyState">Nessun corso associato a questo account. Chiedi a un Admin o Socio di inserire la tua email nella configurazione del corso.</div>';
@@ -3380,6 +3404,8 @@ todoActiveList.appendChild(item);
       courseDetailMeta.textContent = course.startTime + "–" + course.endTime + " · " + (course.teacherName || "Docente da configurare");
       var canManage = currentAccessRole === "admin" || currentAccessRole === "socio";
       if(courseSettingsCard) courseSettingsCard.classList.toggle("hidden", !canManage);
+      if(courseRoster && courseRoster.parentElement) courseRoster.parentElement.classList.toggle("hidden", currentAccessRole === "studente");
+      var composer=document.getElementById("lessonComposerCard"); if(composer) composer.classList.toggle("hidden", currentAccessRole === "studente");
       if(canManage){
         courseTeacherName.value = course.teacherName || "";
         courseTeacherEmail.value = (course.teacherEmails || []).join(", ");
@@ -3407,7 +3433,7 @@ todoActiveList.appendChild(item);
       if(!students.length){ courseRoster.innerHTML = '<div class="schoolEmptyState compact">Nessuno studente iscritto.</div>'; return; }
       students.forEach(function(st){
         var row = document.createElement("div"); row.className="schoolRosterRow";
-        row.innerHTML = '<span class="schoolAvatar">'+escapeHtml((st.firstName||st.lastName||"S").charAt(0).toUpperCase())+'</span><span><strong>'+escapeHtml(fullStudentName(st))+'</strong><small>'+escapeHtml(currentAccessRole === "docente" ? "Studente del corso" : (st.email || st.phone || "Nessun contatto"))+'</small></span>';
+        row.innerHTML = '<span class="schoolAvatar">'+escapeHtml((st.firstName||st.lastName||"S").charAt(0).toUpperCase())+'</span><span><strong>'+escapeHtml(fullStudentName(st))+'</strong><small>'+escapeHtml((currentAccessRole === "docente" || currentAccessRole === "studente") ? "Studente del corso" : (st.email || st.phone || "Nessun contatto"))+'</small></span>';
         courseRoster.appendChild(row);
       });
     }
@@ -3453,6 +3479,7 @@ todoActiveList.appendChild(item);
     }
 
     function canMutateSchoolData(){
+      if(currentAccessRole === "studente") return false;
       if(!isLoggedIn() || !hasAuthorizedCloudRole() || !cloudSessionVerified || remoteWriteLocked){ touchAndSave(); return false; }
       return true;
     }
@@ -3638,8 +3665,8 @@ todoActiveList.appendChild(item);
 
     function openStudentModal(id){
       if(!canCurrentRoleAccess("students")) return;
-      var st=id?getStudentById(id):null; studentEditingId.value=st?st.id:""; studentModalTitle.textContent= currentAccessRole === "docente" ? "Scheda studente" : (st?"Modifica studente":"Nuovo studente");
-      var readOnly = currentAccessRole === "docente";
+      var st=id?getStudentById(id):null; studentEditingId.value=st?st.id:""; studentModalTitle.textContent= currentAccessRole === "studente" ? "La mia scheda" : (currentAccessRole === "docente") ? "Scheda studente" : (st?"Modifica studente":"Nuovo studente");
+      var readOnly = (currentAccessRole === "docente" || currentAccessRole === "studente");
       [studentFirstName,studentLastName,studentEmail,studentPhone,studentNotes].forEach(function(field){ if(field) field.readOnly=readOnly; });
       if(studentCourseChecks) studentCourseChecks.classList.toggle("roleReadOnly",readOnly);
       if(saveStudentBtn) saveStudentBtn.hidden=readOnly;
@@ -3653,13 +3680,13 @@ todoActiveList.appendChild(item);
     function closeStudentModalDirect(){ if(!studentOverlay)return; studentOverlay.style.display="none"; studentOverlay.classList.remove("open"); studentOverlay.setAttribute("aria-hidden","true"); }
     function closeStudentModal(){ closeInternalNavLayer("student", closeStudentModalDirect); }
     function saveStudent(){
-      if(currentAccessRole === "docente" || !canCurrentRoleAccess("students") || !canMutateSchoolData()) return; var first=String(studentFirstName.value||"").trim(), last=String(studentLastName.value||"").trim(); if(!first && !last){alert("Inserisci almeno nome o cognome.");return;}
+      if((currentAccessRole === "docente" || currentAccessRole === "studente") || !canCurrentRoleAccess("students") || !canMutateSchoolData()) return; var first=String(studentFirstName.value||"").trim(), last=String(studentLastName.value||"").trim(); if(!first && !last){alert("Inserisci almeno nome o cognome.");return;}
       var id=studentEditingId.value; var existing=id?getStudentById(id):null; var checked=Array.prototype.slice.call(studentCourseChecks.querySelectorAll('input[type="checkbox"]:checked')).map(function(x){return x.value;});
       var payload=normalizeStudent({id:existing?existing.id:uid(),firstName:first,lastName:last,email:studentEmail.value,phone:studentPhone.value,notes:studentNotes.value,courseIds:checked,finance:existing?existing.finance:null,createdAt:existing?existing.createdAt:new Date().toISOString(),updatedAt:new Date().toISOString()});
       var arr=getAcademyYear().students; if(existing){var i=arr.indexOf(existing);arr[i]=payload;}else arr.push(payload); touchAndSave(); closeStudentModal(); renderStudents(); renderCourses(); if(selectedCourseId) renderCourseDetail();
     }
     function deleteStudent(){
-      if(currentAccessRole === "docente" || !canCurrentRoleAccess("students") || !canMutateSchoolData())return; var id=studentEditingId.value; var st=getStudentById(id); if(!st)return; if(!confirm("Eliminare "+fullStudentName(st)+" dall'anno accademico?"))return;
+      if((currentAccessRole === "docente" || currentAccessRole === "studente") || !canCurrentRoleAccess("students") || !canMutateSchoolData())return; var id=studentEditingId.value; var st=getStudentById(id); if(!st)return; if(!confirm("Eliminare "+fullStudentName(st)+" dall'anno accademico?"))return;
       getAcademyYear().students=getAcademyYear().students.filter(function(x){return x.id!==id;}); (getAcademyYear().courses||[]).forEach(function(c){(c.lessons||[]).forEach(function(l){if(l.attendance)delete l.attendance[id];});}); touchAndSave(); closeStudentModal(); renderStudents(); renderCourses(); if(selectedCourseId) renderCourseDetail();
     }
 

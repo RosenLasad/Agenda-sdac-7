@@ -3,7 +3,7 @@ import { getUser } from "@netlify/identity";
 
 const SHARED_STATE_KEY = "state-v2-shared-sdac";
 const SHARED_META_KEY = "state-v2-shared-sdac-meta";
-const ALLOWED_ROLES = new Set(["admin", "socio", "docente"]);
+const ALLOWED_ROLES = new Set(["admin", "socio", "docente", "studente"]);
 const CURRENT_DATA_VERSION = 3;
 // FAIL CLOSED: previews must never use or migrate the production store.
 const DEPLOY_CONTEXT = process.env.CONTEXT || process.env.NETLIFY_CONTEXT || '';
@@ -64,6 +64,7 @@ function resolveRole(user) {
   if (roles.includes("admin")) return "admin";
   if (roles.includes("socio")) return "socio";
   if (roles.includes("docente")) return "docente";
+  if (roles.includes("studente")) return "studente";
   return null;
 }
 
@@ -253,6 +254,28 @@ function projectAcademyForTeacher(academy, email) {
   return projected;
 }
 
+function projectAcademyForStudent(academy, email) {
+  const source = academy && typeof academy === 'object' ? academy : {activeYear:'2026/2027',years:{}};
+  const result = {activeYear:source.activeYear || '2026/2027',years:{}};
+  const target = normalizeEmail(email);
+  for(const year of Object.keys(source.years || {})) {
+    const sourceYear = source.years[year] || {};
+    // Email must match exactly one registered student in this year.
+    const matches = target ? (sourceYear.students || []).filter(st => normalizeEmail(st.email) === target) : [];
+    const student = matches.length === 1 ? matches[0] : null;
+    const courseIds = new Set(student && Array.isArray(student.courseIds) ? student.courseIds.map(String) : []);
+    const courses = (sourceYear.courses || []).filter(c => courseIds.has(String(c.id))).map(c => ({
+      id:c.id,name:c.name,icon:c.icon,weekday:c.weekday,startTime:c.startTime,endTime:c.endTime,
+      firstDate:c.firstDate,lessonTarget:c.lessonTarget,teacherName:c.teacherName,
+      lessons:(c.lessons || []).map(l => ({date:l.date,startTime:l.startTime,endTime:l.endTime,topic:l.topic || '',notes:l.notes || ''}))
+    }));
+    const students = student ? [{id:student.id,firstName:student.firstName || '',lastName:student.lastName || '',
+      email:student.email || '',phone:student.phone || '',notes:'',courseIds:[...courseIds],finance:{enrollments:{}}}] : [];
+    result.years[year] = {courses,students};
+  }
+  return result;
+}
+
 function mergeAcademyForTeacher(existingAcademy, incomingAcademy, email) {
   const current = existingAcademy && typeof existingAcademy === "object" ? cloneJson(existingAcademy) : { activeYear:"2026/2027", years:{} };
   const incoming = incomingAcademy && typeof incomingAcademy === "object" ? incomingAcademy : { years:{} };
@@ -301,7 +324,7 @@ function projectStateForRole(data, role, user) {
       favoritesOnly: false
     },
     contacts: [],
-    academy: projectAcademyForTeacher(data.academy, user?.email || "")
+    academy: role === "studente" ? projectAcademyForStudent(data.academy, user?.email || "") : projectAcademyForTeacher(data.academy, user?.email || "")
   };
 }
 
@@ -418,6 +441,7 @@ export default async (req, context) => {
     }
 
     if (req.method === "PUT") {
+      if (role === "studente") return json({ok:false,error:"Il ruolo Studente ha accesso in sola lettura"},403);
       let body;
       try {
         body = await req.json();
