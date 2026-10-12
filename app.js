@@ -1566,7 +1566,7 @@
         else if(view === "notebook") setRoleLockedElement(tab, !notebookAllowed, roleRestrictionMessage("notebook"));
         else if(view === "courses") setRoleLockedElement(tab, !coursesAllowed, roleRestrictionMessage("courses"));
         else if(view === "students") setRoleLockedElement(tab, !studentsAllowed, roleRestrictionMessage("students"));
-        else if(view === "administration") setRoleLockedElement(tab, !administrationAllowed, roleRestrictionMessage("administration"));
+        else if(view === "administration") { tab.classList.toggle("roleFeatureHidden", !administrationAllowed); setRoleLockedElement(tab, !administrationAllowed, roleRestrictionMessage("administration")); }
         else setRoleLockedElement(tab, false, "");
       });
 
@@ -3635,7 +3635,7 @@ todoActiveList.appendChild(item);
       var all=(getAcademyYear().students||[]).slice().sort(function(a,b){return fullStudentName(a).localeCompare(fullStudentName(b),"it");});
       var visible=all.filter(function(st){ if(filter!=="all" && (st.courseIds||[]).indexOf(filter)===-1) return false; if(!q) return true; return [fullStudentName(st),st.email,st.phone,st.notes].join(" ").toLowerCase().indexOf(q)!==-1; });
       studentListMeta.textContent=visible.length+" visibili · "+all.length+" totali"; studentList.innerHTML="";
-      if(!visible.length){ studentList.innerHTML='<div class="schoolEmptyState">Nessuno studente corrisponde ai filtri.</div>'; return; }
+      if(!visible.length){ studentList.innerHTML='<div class="schoolEmptyState">'+(currentAccessRole === "studente" ? "La tua scheda non è ancora disponibile. Contatta la segreteria SDAC." : "Nessuno studente corrisponde ai filtri.")+'</div>'; return; }
       visible.forEach(function(st){
         var courses=(st.courseIds||[]).map(getCourseById).filter(Boolean); var card=document.createElement("div"); card.className="schoolStudentCard";
         var openBtn=document.createElement("button"); openBtn.type="button"; openBtn.className="schoolStudentOpenBtn";
