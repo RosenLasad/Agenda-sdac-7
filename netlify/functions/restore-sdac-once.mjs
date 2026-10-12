@@ -24,10 +24,13 @@ export default async(req,context)=>{
     const stamp=new Date().toISOString().replace(/[:.]/g,"-");
     const safetyKey=`recovery-safety/before-restore-${stamp}.json`;
     // Preserve the full original shared blob BEFORE any changes.
-    const archived=await store.setJSON(safetyKey,{savedAtUTC:new Date().toISOString(),stateKey:KEY,state:current});
-    if(!archived?.modified) return json({error:"Impossibile creare copia di sicurezza"},500);
+    const safetyId=crypto.randomUUID();
+    await store.setJSON(safetyKey,{savedAtUTC:new Date().toISOString(),stateKey:KEY,state:current,safetyId});
+    // Do not trust an optional `modified` flag: read the copy back and validate it.
+    const archived=await store.get(safetyKey,{type:"json",consistency:"strong"});
+    if(archived?.safetyId!==safetyId || JSON.stringify(archived?.state)!==JSON.stringify(current)) return json({error:"Verifica copia di sicurezza fallita: ripristino bloccato",safetyKey},500);
     const result=await store.setJSON(KEY,desired,{onlyIfMatch:etag});
-    if(!result?.modified) return json({error:"L'archivio e cambiato: non ripristinato",safetyKey},409);
+    if(result?.modified===false) return json({error:"L'archivio e cambiato: non ripristinato",safetyKey},409);
     await store.setJSON(META,{key:KEY,shared:true,restoredFrom:"backups/2026-10-11.json",restoredAtUTC:new Date().toISOString(),updatedAtUTC:desired.updatedAt});
     const check=await store.get(KEY,{type:"json",consistency:"strong"});
     if(summary(check).students!==13 || summary(check).courses!==6) return json({error:"Verifica successiva fallita",safetyKey},500);

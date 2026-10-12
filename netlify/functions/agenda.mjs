@@ -450,8 +450,10 @@ export default async (req, context) => {
 
       // Keep a server-side snapshot before each accepted write.
       const snapshotKey = `before-writes/${new Date().toISOString().replace(/[:.]/g,"-")}-${crypto.randomUUID()}.json`;
-      const snapshot = await store.setJSON(snapshotKey,{state:current,savedAtUTC:new Date().toISOString()});
-      if(!snapshot?.modified) return json({ok:false,error:"Backup preventivo non riuscito"},500);
+      const snapshotId=crypto.randomUUID();
+      await store.setJSON(snapshotKey,{state:current,savedAtUTC:new Date().toISOString(),snapshotId});
+      const snapshotCheck=await store.get(snapshotKey,{type:"json",consistency:"strong"});
+      if(snapshotCheck?.snapshotId!==snapshotId || JSON.stringify(snapshotCheck?.state)!==JSON.stringify(current)) return json({ok:false,error:"Verifica backup preventivo non riuscita; salvataggio bloccato"},500);
       await store.setJSON(SHARED_STATE_KEY, nextState);
       await store.setJSON(SHARED_META_KEY, {
         key: SHARED_STATE_KEY,
