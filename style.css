@@ -4848,3 +4848,59 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
 .passwordEyeToggle:hover,.passwordEyeToggle:focus-visible{background:rgba(128,128,128,.2);}
 @media(max-width:520px){.accountModal{width:calc(100vw - 42px) !important;max-width:calc(100vw - 42px) !important;}.accountModalBody{padding:12px !important;}}
 .settingsDropdown{top:100%;right:0;margin-top:7px;}
+
+
+/* ===== SDAC: layout account e indicatori header (solo presentazione) ===== */
+/* Email e Ruolo in prima riga; Sincronizzazione su tutta la seconda. */
+.accountInfoGrid{
+  display:grid;
+  grid-template-columns:minmax(0, 1.85fr) minmax(0, 1fr);
+  gap:10px;
+}
+.accountInfoGrid > .accountInfoItem{
+  min-width:0;
+  max-width:100%;
+}
+.accountInfoGrid > .accountInfoItem:nth-child(3){
+  grid-column:1 / -1;
+}
+/* Le email lunghe non devono invadere la colonna Ruolo. */
+#accountUserEmail{
+  display:block;
+  max-width:100%;
+  overflow-wrap:anywhere;
+  word-break:break-word;
+  line-height:1.35;
+}
+.accountInfoItem .accountRoleBadge{
+  max-width:100%;
+  white-space:normal;
+  overflow-wrap:anywhere;
+}
+/* Su telefoni molto stretti i tre riquadri diventano verticali. */
+@media (max-width:390px){
+  .accountInfoGrid{grid-template-columns:minmax(0, 1fr);}
+  .accountInfoGrid > .accountInfoItem:nth-child(3){grid-column:auto;}
+}
+/* Indicatore Cloud sopra l'indicatore Ruolo, allineati a destra. */
+.headerStatusStack{
+  display:flex;
+  flex-direction:column;
+  align-items:flex-end;
+  justify-content:flex-start;
+  flex-wrap:nowrap;
+  gap:5px;
+  min-width:0;
+}
+.headerStatusStack > .cloudSyncStatus,
+.headerStatusStack > .sessionRoleBadge{
+  flex:0 0 auto;
+  width:max-content;
+  max-width:100%;
+}
+@media (max-width:760px){
+  .headerStatusStack{gap:4px;}
+}
+@media (max-width:340px){
+  .headerStatusStack{flex-wrap:nowrap;}
+}
