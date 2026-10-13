@@ -738,6 +738,30 @@
 
   </div>
 
+  <!-- Fase A: riepilogo economico per studente, SOLA LETTURA. Nessun dato viene migrato. -->
+  <div class="overlay" id="financeAggregateOverlay" role="dialog" aria-modal="true" aria-hidden="true" aria-labelledby="financeAggregateTitle">
+    <div class="modal financeAggregateModal">
+      <div class="modalHeader">
+        <div><div class="schoolEyebrow">Riepilogo economico · 2026/2027</div><h3 id="financeAggregateTitle">Studente</h3></div>
+        <button class="btn" type="button" id="closeFinanceAggregateBtn">Chiudi</button>
+      </div>
+      <div class="financeAggregateBody">
+        <div class="financeAggregateNotice">Fase A · Riepilogo dei dati storici per corso. Le quote sono sommate <strong>senza applicare sconti</strong>; la quota concordata e i pagamenti condivisi saranno gestiti nella Fase B.</div>
+        <div class="schoolEyebrow">Corsi frequentati</div>
+        <div id="financeAggregateCourses" class="financeAggregateCourseNames"></div>
+        <div class="financeAggregateTotals">
+          <div><span>Quote corsi (lordo)</span><strong id="financeAggregateFee">—</strong></div>
+          <div><span>Pagamenti registrati</span><strong id="financeAggregatePaid">—</strong></div>
+          <div><span>Differenza provvisoria</span><strong id="financeAggregateBalance">—</strong></div>
+        </div>
+        <div class="schoolEyebrow">Dettaglio dei corsi</div>
+        <div id="financeAggregateBreakdown" class="financeAggregateBreakdown"></div>
+        <div class="schoolEyebrow">Registro pagamenti storico</div>
+        <div id="financeAggregatePayments" class="financeAggregatePayments"></div>
+      </div>
+    </div>
+  </div>
+
   <!-- Finance modal -->
   <div class="overlay" id="financeOverlay" role="dialog" aria-modal="true" aria-hidden="true">
     <div class="modal financeModal">

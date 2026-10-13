@@ -3747,28 +3747,79 @@ todoActiveList.appendChild(item);
       return (overdue?"Scaduta ":"Scadenza ")+formatSchoolDate(entry.enrollment.nextDueDate);
     }
 
+    // Fase A: un riepilogo in sola lettura, senza migrazione o scrittura dei pagamenti.
+    function studentAggregatedFinance(student, entries){
+      var parts=entries.filter(function(e){return e.student.id===student.id;});
+      var fee=0,paid=0,dates=[],payments=[];
+      parts.forEach(function(e){
+        fee+=e.fee;paid+=e.paid;
+        if(e.enrollment.nextDueDate && e.balance>0) dates.push(e.enrollment.nextDueDate);
+        (e.enrollment.payments||[]).forEach(function(p){payments.push({payment:p,course:e.course});});
+      });
+      var balance=fee-paid;
+      var overdue=dates.some(function(d){return d<isoDate(getTodayDate());});
+      var key=fee>0&&balance<=0.009?"settled":overdue?"overdue":paid<=0?"unpaid":"ok";
+      var labels={settled:["✅","Saldato"],overdue:["🔴","Scaduto"],unpaid:["⚪","Da iniziare"],ok:["🟢","In regola"]};
+      return {student:student,entries:parts,fee:fee,paid:paid,balance:balance,payments:payments,status:{key:key,icon:labels[key][0],label:labels[key][1]},dueDates:dates};
+    }
+
     function renderAdministrationFees(entries){
       if(!administrationFeeList)return;
       populateAdministrationCourseFilter();
       var q=String(administrationSearch&&administrationSearch.value||"").trim().toLowerCase();
       var courseFilter=administrationCourseFilter?administrationCourseFilter.value:"all";
       var statusFilter=administrationStatusFilter?administrationStatusFilter.value:"all";
-      var visible=entries.filter(function(e){
-        if(courseFilter!=="all"&&e.course.id!==courseFilter)return false;
-        if(statusFilter!=="all"&&e.status.key!==statusFilter)return false;
+      var students=(getAcademyYear().students||[]).map(function(st){return studentAggregatedFinance(st,entries);});
+      var visible=students.filter(function(s){
+        if(!s.entries.length)return false;
+        if(courseFilter!=="all"&&!s.entries.some(function(e){return e.course.id===courseFilter;}))return false;
+        if(statusFilter!=="all"&&s.status.key!==statusFilter)return false;
         if(!q)return true;
-        return (fullStudentName(e.student)+" "+e.course.name+" "+e.student.email).toLowerCase().indexOf(q)!==-1;
-      }).sort(function(a,b){return fullStudentName(a.student).localeCompare(fullStudentName(b.student),"it")||a.course.name.localeCompare(b.course.name,"it");});
-      if(administrationFeesMeta) administrationFeesMeta.textContent=visible.length+" iscrizioni visibili · "+entries.length+" totali";
+        return (fullStudentName(s.student)+" "+s.student.email+" "+s.entries.map(function(e){return e.course.name;}).join(" ")).toLowerCase().indexOf(q)!==-1;
+      }).sort(function(a,b){return fullStudentName(a.student).localeCompare(fullStudentName(b.student),"it");});
+      if(administrationFeesMeta) administrationFeesMeta.textContent=visible.length+" studenti visibili · "+students.filter(function(s){return s.entries.length;}).length+" totali";
       administrationFeeList.innerHTML="";
-      if(!visible.length){administrationFeeList.innerHTML='<div class="schoolEmptyState">Nessuna quota corrisponde ai filtri.</div>';return;}
-      visible.forEach(function(e){
-        var row=document.createElement("div"); row.className="administrationFeeRow";
-        var due=e.enrollment.nextDueDate&&e.balance>0?dueDescription(e):""; var dueClass=e.status.key==="overdue"?" overdue":"";
-        var progress=e.fee>0?Math.max(0,Math.min(100,Math.round((e.paid/e.fee)*100))):0;
-        row.innerHTML='<div class="administrationFeeHeader"><div class="administrationFeePerson"><strong>'+escapeHtml(fullStudentName(e.student))+'</strong><span>'+escapeHtml(e.course.icon+" "+e.course.name)+'</span></div><div class="administrationFeeActions"><span class="financeStatusBadge" data-status="'+e.status.key+'">'+e.status.icon+' '+escapeHtml(e.status.label)+'</span><button class="btn administrationOpenBtn" type="button">Apri ›</button></div></div><div class="administrationAmounts"><span><strong>'+escapeHtml(formatEuro(e.fee))+'</strong><small>Quota</small></span><span><strong>'+escapeHtml(formatEuro(e.paid))+'</strong><small>Pagato</small></span><span><strong>'+escapeHtml(formatEuro(e.balance))+'</strong><small>Residuo</small></span></div><div class="administrationPaymentProgress" role="progressbar" aria-label="Quota pagata" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+progress+'"><i style="width:'+progress+'%"></i></div>'+(due?'<div class="administrationDueText'+dueClass+'">'+escapeHtml(due)+'</div>':'');
-        row.querySelector("button").addEventListener("click",function(){openFinanceModal(e.student.id,e.course.id);}); administrationFeeList.appendChild(row);
+      if(!visible.length){administrationFeeList.innerHTML='<div class="schoolEmptyState">Nessuno studente corrisponde ai filtri.</div>';return;}
+      visible.forEach(function(s){
+        var row=document.createElement("div");row.className="administrationFeeRow administrationFeeRow--student";
+        var progress=s.fee>0?Math.max(0,Math.min(100,Math.round(s.paid/s.fee*100))):0;
+        var courseNames=s.entries.map(function(e){return e.course.icon+" "+e.course.name;}).join(" · ");
+        row.innerHTML='<div class="administrationFeeHeader"><div class="administrationFeePerson"><strong>'+escapeHtml(fullStudentName(s.student))+'</strong><span class="administrationStudentCourses">'+escapeHtml(courseNames)+'</span></div><div class="administrationFeeActions"><span class="financeStatusBadge" data-status="'+s.status.key+'">'+s.status.icon+' '+escapeHtml(s.status.label)+'</span><button class="btn administrationOpenBtn" type="button">Apri ›</button></div></div><div class="administrationAmounts"><span><strong>'+escapeHtml(formatEuro(s.fee))+'</strong><small>Quote corsi (senza sconti)</small></span><span><strong>'+escapeHtml(formatEuro(s.paid))+'</strong><small>Pagato</small></span><span><strong>'+escapeHtml(formatEuro(s.balance))+'</strong><small>Differenza provvisoria</small></span></div><div class="administrationPaymentProgress" role="progressbar" aria-label="Quote pagate" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+progress+'"><i style="width:'+progress+'%"></i></div>';
+        row.querySelector("button").addEventListener("click",function(){openAggregatedFinanceModal(s.student.id);});
+        administrationFeeList.appendChild(row);
       });
+    }
+
+    function openAggregatedFinanceModal(studentId){
+      if(!canCurrentRoleAccess("administration"))return;
+      var student=getStudentById(studentId);if(!student)return;
+      var summary=studentAggregatedFinance(student,financeEntries());
+      var overlay=document.getElementById("financeAggregateOverlay");if(!overlay)return;
+      var name=overlay.querySelector("#financeAggregateTitle");name.textContent=fullStudentName(student);
+      overlay.querySelector("#financeAggregateCourses").textContent=summary.entries.map(function(e){return e.course.icon+" "+e.course.name;}).join(" · ");
+      overlay.querySelector("#financeAggregateFee").textContent=formatEuro(summary.fee);
+      overlay.querySelector("#financeAggregatePaid").textContent=formatEuro(summary.paid);
+      overlay.querySelector("#financeAggregateBalance").textContent=formatEuro(summary.balance);
+      var breakdown=overlay.querySelector("#financeAggregateBreakdown");breakdown.innerHTML="";
+      summary.entries.forEach(function(e){
+        var item=document.createElement("div");item.className="financeAggregateCourse";
+        item.innerHTML='<div><strong>'+escapeHtml(e.course.icon+" "+e.course.name)+'</strong><span>Quota '+escapeHtml(formatEuro(e.fee))+' · Pagato '+escapeHtml(formatEuro(e.paid))+'</span></div><button type="button" class="btn">Dettaglio corso</button>';
+        item.querySelector("button").addEventListener("click",function(){closeAggregatedFinanceModal();openFinanceModal(student.id,e.course.id);});
+        breakdown.appendChild(item);
+      });
+      var paymentList=overlay.querySelector("#financeAggregatePayments");paymentList.innerHTML="";
+      var sorted=summary.payments.slice().sort(function(a,b){return String(b.payment.date||b.payment.createdAt||"").localeCompare(String(a.payment.date||a.payment.createdAt||""));});
+      if(!sorted.length)paymentList.innerHTML='<div class="schoolEmptyState compact">Nessun pagamento registrato.</div>';
+      sorted.forEach(function(entry){
+        var pay=entry.payment, item=document.createElement("div");item.className="financeAggregatePayment";
+        item.innerHTML='<strong>'+escapeHtml(formatEuro(pay.amount))+'</strong><div><span>'+escapeHtml((pay.date?formatSchoolDate(pay.date):"Data non indicata")+' · '+(pay.kind==="deposit"?"Acconto":"Pagamento")+(pay.method?" · "+pay.method:""))+'</span><small>'+escapeHtml(entry.course.name+(pay.note?" · "+pay.note:""))+'</small></div>';
+        paymentList.appendChild(item);
+      });
+      overlay.style.display="flex";overlay.classList.add("open");overlay.setAttribute("aria-hidden","false");
+    }
+    function closeAggregatedFinanceModal(){
+      var overlay=document.getElementById("financeAggregateOverlay");if(!overlay)return;
+      overlay.style.display="none";overlay.classList.remove("open");overlay.setAttribute("aria-hidden","true");
     }
 
     function renderAdministrationDeadlines(entries){
@@ -3860,6 +3911,11 @@ todoActiveList.appendChild(item);
       renderStudents();
       renderAdministration();
     }
+
+    var aggregateCloseButton=document.getElementById("closeFinanceAggregateBtn");
+    if(aggregateCloseButton) aggregateCloseButton.addEventListener("click",closeAggregatedFinanceModal);
+    var aggregateOverlay=document.getElementById("financeAggregateOverlay");
+    if(aggregateOverlay) aggregateOverlay.addEventListener("click",function(e){if(e.target===aggregateOverlay)closeAggregatedFinanceModal();});
 
     // Wire
     tabs.forEach(function(t){

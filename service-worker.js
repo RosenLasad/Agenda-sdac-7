@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-phase4-tabs-v2";
+const CACHE_NAME = "sdac-phaseA-admin-summary-v1";
 
 const APP_SHELL = [
   "./",
