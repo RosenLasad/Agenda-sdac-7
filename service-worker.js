@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-phaseB1-finance-back-v2";
+const CACHE_NAME = "sdac-student-link-diagnostics-v3";
 
 const APP_SHELL = [
   "./",

@@ -1167,6 +1167,13 @@
 
         remoteLastCheckedAt = new Date().toISOString();
         var remote = envelope ? envelope.data : null;
+        if(getCurrentAccessRole() === "studente" && envelope && envelope.studentAccess){
+          var diag = envelope.studentAccess;
+          try{ console.info("SDAC Studente - associazione cloud", {
+            status:diag.status, schede:diag.matchedStudents,
+            iscrizioni:diag.enrolledCourses, corsiDisponibili:diag.availableCourses
+          }); }catch(e){}
+        }
         // In un nuovo accesso il server e la sola fonte autorevole.
         // Non inviare mai automaticamente un archivio locale al cloud.
         if(remote && typeof remote === "object"){
@@ -3347,10 +3354,10 @@ todoActiveList.appendChild(item);
       if(coursesVisibleCount) coursesVisibleCount.textContent = String(courses.length);
       if(coursesStudentCount) coursesStudentCount.textContent = String((year.students || []).length);
       if(coursesRoleHint){
-        coursesRoleHint.textContent = (currentAccessRole === "docente" || currentAccessRole === "studente") ? "Vedi solo i corsi associati alla tua email docente." : "Seleziona un corso per aprire registro, iscritti e lezioni.";
+        coursesRoleHint.textContent = currentAccessRole === "studente" ? "Qui trovi i corsi ai quali sei iscritto." : currentAccessRole === "docente" ? "Vedi solo i corsi associati alla tua email docente." : "Seleziona un corso per aprire registro, iscritti e lezioni.";
       }
       if(!courses.length){
-        courseGrid.innerHTML = '<div class="schoolEmptyState">Nessun corso associato a questo account. Chiedi a un Admin o Socio di inserire la tua email nella configurazione del corso.</div>';
+        courseGrid.innerHTML = '<div class="schoolEmptyState">' + (currentAccessRole === "studente" ? "Nessun corso visibile per questo account. Controlla l’associazione della tua scheda con la segreteria SDAC." : "Nessun corso associato a questo account. Chiedi a un Admin o Socio di inserire la tua email nella configurazione del corso.") + '</div>';
         if(viewCourses) viewCourses.classList.remove("course-detail-open");
         if(courseDetailCard) courseDetailCard.classList.add("hidden");
         return;
