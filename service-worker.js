@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-student-cloud-read-v1";
+const CACHE_NAME = "sdac-studio-brand-v1";
 
 const APP_SHELL = [
   "./",

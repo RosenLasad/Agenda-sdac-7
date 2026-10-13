@@ -1,7 +1,7 @@
 {
-  "name": "SDAC Agenda",
+  "name": "SDAC Studio",
   "short_name": "SDAC",
-  "description": "Calendario condiviso, taccuino e rubrica per la Scuola D'Arte Cinematografica di Genova.",
+  "description": "Corsi, calendario e strumenti della Scuola d’Arte Cinematografica di Genova.",
   "lang": "it",
   "start_url": "/",
   "scope": "/",
