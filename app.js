@@ -675,7 +675,13 @@
               return migrated;
             }
           }
-          return defaultState();
+          // I ruoli con accesso limitato non devono mostrare il catalogo
+          // predefinito come se fosse il risultato del Cloud.
+          var initial = defaultState();
+          var role = getCurrentAccessRole();
+          return (role === "studente" || role === "docente")
+            ? projectStateForRole(initial, role, getCurrentUserEmail())
+            : initial;
         }
         var obj = JSON.parse(raw);
         if(!obj || typeof obj !== "object") return defaultState();
@@ -1167,18 +1173,11 @@
 
         remoteLastCheckedAt = new Date().toISOString();
         var remote = envelope ? envelope.data : null;
-        if(getCurrentAccessRole() === "studente" && envelope && envelope.studentAccess){
-          var diag = envelope.studentAccess;
-          try{ console.info("SDAC Studente - associazione cloud", {
-            status:diag.status, schede:diag.matchedStudents,
-            iscrizioni:diag.enrolledCourses, corsiDisponibili:diag.availableCourses
-          }); }catch(e){}
-        }
         // In un nuovo accesso il server e la sola fonte autorevole.
         // Non inviare mai automaticamente un archivio locale al cloud.
         if(remote && typeof remote === "object"){
           remoteLastKnownUpdatedAt = remote.updatedAt || null;
-          if(!hasLocalData(remote) && hasLocalData(state)){
+          if(getCurrentAccessRole() !== "studente" && !hasLocalData(remote) && hasLocalData(state)){
             cloudSessionVerified = false;
             setCloudWriteLock(true, "sync");
             setCloudStatus("locked", "Il cloud risulta vuoto ma esiste una copia locale. Salvataggi disabilitati per sicurezza.");
@@ -1273,7 +1272,7 @@
 
     function startRemotePolling(){
       stopRemotePolling();
-      if(getCurrentAccessRole() === "studente" || !isLoggedIn() || !hasAuthorizedCloudRole()) return;
+      if(!isLoggedIn() || !hasAuthorizedCloudRole()) return;
       remotePollHandle = setInterval(function(){
         if(document.visibilityState === "visible" && !remoteSyncInFlight && !remoteSaveInFlight && !remoteConflictPending && !remoteSaveTimer){
           scheduleRemoteRefresh(false, remoteWriteLocked);
@@ -1289,7 +1288,9 @@
     }
 
     function scheduleRemoteRefresh(forcePull, mandatory){
-      if(getCurrentAccessRole() === "studente" || !isLoggedIn() || !hasAuthorizedCloudRole()) return;
+      // Lo Studente deve poter eseguire GET (sola lettura).
+      // Il divieto di PUT resta in scheduleRemoteSave e nel backend.
+      if(!isLoggedIn() || !hasAuthorizedCloudRole()) return;
       if(remotePullTimer) clearTimeout(remotePullTimer);
       remotePullTimer = setTimeout(function(){
         syncFromCloudOrSeed(!!forcePull, !!mandatory);
@@ -3354,10 +3355,10 @@ todoActiveList.appendChild(item);
       if(coursesVisibleCount) coursesVisibleCount.textContent = String(courses.length);
       if(coursesStudentCount) coursesStudentCount.textContent = String((year.students || []).length);
       if(coursesRoleHint){
-        coursesRoleHint.textContent = currentAccessRole === "studente" ? "Qui trovi i corsi ai quali sei iscritto." : currentAccessRole === "docente" ? "Vedi solo i corsi associati alla tua email docente." : "Seleziona un corso per aprire registro, iscritti e lezioni.";
+        coursesRoleHint.textContent = currentAccessRole === "studente" ? "Qui trovi i corsi ai quali sei iscritto." : currentAccessRole === "docente" ? "Vedi solo i corsi assegnati al tuo account Docente." : "Seleziona un corso per aprire registro, iscritti e lezioni.";
       }
       if(!courses.length){
-        courseGrid.innerHTML = '<div class="schoolEmptyState">' + (currentAccessRole === "studente" ? "Nessun corso visibile per questo account. Controlla l’associazione della tua scheda con la segreteria SDAC." : "Nessun corso associato a questo account. Chiedi a un Admin o Socio di inserire la tua email nella configurazione del corso.") + '</div>';
+        courseGrid.innerHTML = '<div class="schoolEmptyState">' + (currentAccessRole === "studente" ? "Nessun corso associato alla tua scheda. Contatta la segreteria SDAC se hai gia completato l’iscrizione." : "Nessun corso associato a questo account. Chiedi a un Admin o Socio di inserire la tua email nella configurazione del corso.") + '</div>';
         if(viewCourses) viewCourses.classList.remove("course-detail-open");
         if(courseDetailCard) courseDetailCard.classList.add("hidden");
         return;
