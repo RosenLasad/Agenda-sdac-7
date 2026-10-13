@@ -436,7 +436,17 @@
         legacy.payments = legacyPayments;
         legacy.notes = String(f.notes || "");
       }
-      return { enrollments:enrollments };
+      var shared = f.shared && typeof f.shared === "object" ? f.shared : {};
+      var discount = shared.discount && typeof shared.discount === "object" ? shared.discount : {};
+      return { enrollments:enrollments, shared:{
+        agreedFee: shared.agreedFee === null || shared.agreedFee === undefined || shared.agreedFee === "" ? null : Math.max(0,Number(shared.agreedFee)||0),
+        discountType: ["amount","percent"].indexOf(discount.type)>=0 ? discount.type : "amount",
+        discountValue: Math.max(0,Number(discount.value)||0),
+        discountReason: String(discount.reason||"").slice(0,250),
+        dueDate: String(shared.dueDate||"2027-04-30").slice(0,10),
+        payments: Array.isArray(shared.payments) ? shared.payments.map(normalizeFinancePayment).filter(function(p){return p.amount>0;}) : [],
+        audit: Array.isArray(shared.audit) ? shared.audit.map(normalizeFinanceAuditEvent).slice(-300) : []
+      }};
     }
 
     function normalizeStudent(raw){
@@ -3748,19 +3758,36 @@ todoActiveList.appendChild(item);
     }
 
     // Fase A: un riepilogo in sola lettura, senza migrazione o scrittura dei pagamenti.
+    // I pagamenti storici restano nei singoli corsi; i nuovi sono nel registro condiviso.
+    function sharedFinanceFor(student){
+      if(!student.finance || !student.finance.shared) student.finance=normalizeStudentFinance(student.finance,student.courseIds||[]);
+      return student.finance.shared;
+    }
+    function proposedFinanceFee(parts){
+      var prices=parts.map(function(e){return e.fee;}).sort(function(a,b){return a-b;});
+      var sum=prices.reduce(function(a,b){return a+b;},0),n=prices.length;
+      return n===2?sum-prices[0]*0.5:n===3?sum-prices[0]:n===4?3000:sum;
+    }
+    function financeAggregateState(student,parts){
+      var shared=sharedFinanceFor(student),gross=parts.reduce(function(a,e){return a+e.fee;},0),suggested=proposedFinanceFee(parts);
+      var extra=shared.discountType==='percent'?suggested*Math.min(100,shared.discountValue)/100:shared.discountValue;
+      var suggestedAfter=Math.max(0,suggested-extra),fee=shared.agreedFee===null?suggestedAfter:shared.agreedFee;
+      var historical=parts.reduce(function(a,e){return a+e.paid;},0),sharedPaid=(shared.payments||[]).reduce(function(a,p){return a+Number(p.amount||0);},0);
+      return {shared:shared,gross:gross,suggested:suggested,suggestedAfter:suggestedAfter,fee:fee,paid:historical+sharedPaid,sharedPaid:sharedPaid,balance:fee-historical-sharedPaid,confirmed:shared.agreedFee!==null};
+    }
     function studentAggregatedFinance(student, entries){
       var parts=entries.filter(function(e){return e.student.id===student.id;});
-      var fee=0,paid=0,dates=[],payments=[];
+      var totals=financeAggregateState(student,parts),dates=[],payments=[];
       parts.forEach(function(e){
-        fee+=e.fee;paid+=e.paid;
         if(e.enrollment.nextDueDate && e.balance>0) dates.push(e.enrollment.nextDueDate);
         (e.enrollment.payments||[]).forEach(function(p){payments.push({payment:p,course:e.course});});
       });
-      var balance=fee-paid;
-      var overdue=dates.some(function(d){return d<isoDate(getTodayDate());});
-      var key=fee>0&&balance<=0.009?"settled":overdue?"overdue":paid<=0?"unpaid":"ok";
+      totals.shared.payments.forEach(function(p){payments.push({payment:p,course:null});});
+      if(totals.shared.dueDate && totals.balance>0)dates.push(totals.shared.dueDate);
+      var overdue=totals.confirmed && dates.some(function(d){return d<isoDate(getTodayDate());});
+      var key=totals.confirmed && totals.fee>=0&&totals.balance<=0.009?"settled":overdue?"overdue":totals.paid<=0?"unpaid":"ok";
       var labels={settled:["✅","Saldato"],overdue:["🔴","Scaduto"],unpaid:["⚪","Da iniziare"],ok:["🟢","In regola"]};
-      return {student:student,entries:parts,fee:fee,paid:paid,balance:balance,payments:payments,status:{key:key,icon:labels[key][0],label:labels[key][1]},dueDates:dates};
+      return {student:student,entries:parts,fee:totals.fee,gross:totals.gross,paid:totals.paid,balance:totals.balance,payments:payments,status:{key:key,icon:labels[key][0],label:labels[key][1]},dueDates:dates,totals:totals};
     }
 
     function renderAdministrationFees(entries){
@@ -3784,7 +3811,7 @@ todoActiveList.appendChild(item);
         var row=document.createElement("div");row.className="administrationFeeRow administrationFeeRow--student";
         var progress=s.fee>0?Math.max(0,Math.min(100,Math.round(s.paid/s.fee*100))):0;
         var courseNames=s.entries.map(function(e){return e.course.icon+" "+e.course.name;}).join(" · ");
-        row.innerHTML='<div class="administrationFeeHeader"><div class="administrationFeePerson"><strong>'+escapeHtml(fullStudentName(s.student))+'</strong><span class="administrationStudentCourses">'+escapeHtml(courseNames)+'</span></div><div class="administrationFeeActions"><span class="financeStatusBadge" data-status="'+s.status.key+'">'+s.status.icon+' '+escapeHtml(s.status.label)+'</span><button class="btn administrationOpenBtn" type="button">Apri ›</button></div></div><div class="administrationAmounts"><span><strong>'+escapeHtml(formatEuro(s.fee))+'</strong><small>Quote corsi (senza sconti)</small></span><span><strong>'+escapeHtml(formatEuro(s.paid))+'</strong><small>Pagato</small></span><span><strong>'+escapeHtml(formatEuro(s.balance))+'</strong><small>Differenza provvisoria</small></span></div><div class="administrationPaymentProgress" role="progressbar" aria-label="Quote pagate" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+progress+'"><i style="width:'+progress+'%"></i></div>';
+        row.innerHTML='<div class="administrationFeeHeader"><div class="administrationFeePerson"><strong>'+escapeHtml(fullStudentName(s.student))+'</strong><span class="administrationStudentCourses">'+escapeHtml(courseNames)+'</span></div><div class="administrationFeeActions"><span class="financeStatusBadge" data-status="'+s.status.key+'">'+s.status.icon+' '+escapeHtml(s.status.label)+'</span><button class="btn administrationOpenBtn" type="button">Apri ›</button></div></div><div class="administrationAmounts"><span><strong>'+escapeHtml(formatEuro(s.fee))+'</strong><small>Quota proposta / concordata</small></span><span><strong>'+escapeHtml(formatEuro(s.paid))+'</strong><small>Pagato</small></span><span><strong>'+escapeHtml(formatEuro(s.balance))+'</strong><small>Residuo complessivo</small></span></div><div class="administrationPaymentProgress" role="progressbar" aria-label="Quote pagate" aria-valuemin="0" aria-valuemax="100" aria-valuenow="'+progress+'"><i style="width:'+progress+'%"></i></div>';
         row.querySelector("button").addEventListener("click",function(){openAggregatedFinanceModal(s.student.id);});
         administrationFeeList.appendChild(row);
       });
@@ -3800,6 +3827,17 @@ todoActiveList.appendChild(item);
       overlay.querySelector("#financeAggregateFee").textContent=formatEuro(summary.fee);
       overlay.querySelector("#financeAggregatePaid").textContent=formatEuro(summary.paid);
       overlay.querySelector("#financeAggregateBalance").textContent=formatEuro(summary.balance);
+      overlay.querySelector("#financeAggregateGross").textContent=formatEuro(summary.gross);
+      overlay.querySelector("#financeAggregateFeeLabel").textContent=summary.totals.confirmed?"Quota concordata":"Quota proposta (da confermare)";
+      overlay.querySelector("#financeAggregateAgreementHint").textContent=summary.totals.confirmed?"Quota confermata e salvata.":"Nessuna quota complessiva concordata salvata. La proposta non sostituisce gli accordi esistenti.";
+      if(summary.entries.length>=5)overlay.querySelector("#financeAggregateAgreementHint").textContent+=" Per cinque o più corsi, la quota deve essere concordata manualmente.";
+      overlay.querySelector("#financeAggregateProposed").textContent=formatEuro(summary.totals.suggested);
+      overlay.querySelector("#financeAggregateDiscountType").value=summary.totals.shared.discountType;
+      overlay.querySelector("#financeAggregateDiscountValue").value=String(summary.totals.shared.discountValue);
+      overlay.querySelector("#financeAggregateDiscountReason").value=summary.totals.shared.discountReason;
+      overlay.querySelector("#financeAggregateAgreed").value=summary.totals.confirmed?String(summary.totals.fee):"";
+      overlay.querySelector("#financeAggregateDueDate").value=summary.totals.shared.dueDate||"2027-04-30";
+      overlay.dataset.studentId=student.id;
       var breakdown=overlay.querySelector("#financeAggregateBreakdown");breakdown.innerHTML="";
       summary.entries.forEach(function(e){
         var item=document.createElement("div");item.className="financeAggregateCourse";
@@ -3812,10 +3850,36 @@ todoActiveList.appendChild(item);
       if(!sorted.length)paymentList.innerHTML='<div class="schoolEmptyState compact">Nessun pagamento registrato.</div>';
       sorted.forEach(function(entry){
         var pay=entry.payment, item=document.createElement("div");item.className="financeAggregatePayment";
-        item.innerHTML='<strong>'+escapeHtml(formatEuro(pay.amount))+'</strong><div><span>'+escapeHtml((pay.date?formatSchoolDate(pay.date):"Data non indicata")+' · '+(pay.kind==="deposit"?"Acconto":"Pagamento")+(pay.method?" · "+pay.method:""))+'</span><small>'+escapeHtml(entry.course.name+(pay.note?" · "+pay.note:""))+'</small></div>';
+        item.innerHTML='<strong>'+escapeHtml(formatEuro(pay.amount))+'</strong><div><span>'+escapeHtml((pay.date?formatSchoolDate(pay.date):"Data non indicata")+' · '+(pay.kind==="deposit"?"Acconto":"Pagamento")+(pay.method?" · "+pay.method:""))+'</span><small>'+escapeHtml((entry.course?entry.course.name:"Pagamento condiviso")+(pay.note?" · "+pay.note:""))+'</small></div>';
         paymentList.appendChild(item);
       });
       overlay.style.display="flex";overlay.classList.add("open");overlay.setAttribute("aria-hidden","false");
+    }
+    function saveAggregatedFinanceSettings(){
+      if(!canCurrentRoleAccess("administration")||!canMutateSchoolData())return;
+      var overlay=document.getElementById("financeAggregateOverlay"),student=getStudentById(overlay.dataset.studentId);if(!student)return;
+      var shared=sharedFinanceFor(student),agreedText=overlay.querySelector("#financeAggregateAgreed").value.trim();
+      var agreed=agreedText===""?null:Number(agreedText),discountValue=Number(overlay.querySelector("#financeAggregateDiscountValue").value);
+      if((agreed!==null&&(!Number.isFinite(agreed)||agreed<0))||!Number.isFinite(discountValue)||discountValue<0){alert("Controlla gli importi inseriti.");return;}
+      var discountType=overlay.querySelector("#financeAggregateDiscountType").value;
+      if(discountType==="percent"&&discountValue>100){alert("La percentuale non può superare 100.");return;}
+      shared.agreedFee=agreed;shared.discountType=discountType;shared.discountValue=discountValue;
+      shared.discountReason=overlay.querySelector("#financeAggregateDiscountReason").value.trim().slice(0,250);
+      shared.dueDate=overlay.querySelector("#financeAggregateDueDate").value||"2027-04-30";
+      shared.audit.push(normalizeFinanceAuditEvent({type:"shared_settings",detail:"Quota e agevolazioni aggiornate",actorEmail:getCurrentUserEmail(),actorRole:getCurrentAccessRole()}));
+      student.updatedAt=new Date().toISOString();touchAndSave();renderAdministration();openAggregatedFinanceModal(student.id);
+    }
+    function addSharedFinancePayment(){
+      if(!canCurrentRoleAccess("administration")||!canMutateSchoolData())return;
+      var overlay=document.getElementById("financeAggregateOverlay"),student=getStudentById(overlay.dataset.studentId);if(!student)return;
+      var amount=Number(overlay.querySelector("#sharedPaymentAmount").value);
+      if(!Number.isFinite(amount)||amount<=0){alert("Inserisci un importo positivo.");return;}
+      var actor=currentAuditActor(),shared=sharedFinanceFor(student);
+      var pay=normalizeFinancePayment({kind:overlay.querySelector("#sharedPaymentKind").value,amount:amount,date:overlay.querySelector("#sharedPaymentDate").value||isoDate(getTodayDate()),method:overlay.querySelector("#sharedPaymentMethod").value,note:overlay.querySelector("#sharedPaymentNote").value.trim(),createdBy:actor.email,createdByRole:actor.role,createdAt:actor.at});
+      shared.payments.push(pay);
+      shared.audit.push(normalizeFinanceAuditEvent({type:"payment_added",paymentId:pay.id,amount:pay.amount,date:pay.date,detail:"Pagamento condiviso",actorEmail:actor.email,actorRole:actor.role}));
+      student.updatedAt=new Date().toISOString();touchAndSave();renderAdministration();openAggregatedFinanceModal(student.id);
+      overlay.querySelector("#sharedPaymentAmount").value="";overlay.querySelector("#sharedPaymentNote").value="";
     }
     function closeAggregatedFinanceModal(){
       var overlay=document.getElementById("financeAggregateOverlay");if(!overlay)return;
@@ -3916,6 +3980,11 @@ todoActiveList.appendChild(item);
     if(aggregateCloseButton) aggregateCloseButton.addEventListener("click",closeAggregatedFinanceModal);
     var aggregateOverlay=document.getElementById("financeAggregateOverlay");
     if(aggregateOverlay) aggregateOverlay.addEventListener("click",function(e){if(e.target===aggregateOverlay)closeAggregatedFinanceModal();});
+
+    var saveAggregate=document.getElementById("saveFinanceAggregateBtn"),addShared=document.getElementById("addSharedPaymentBtn");
+    if(saveAggregate)saveAggregate.addEventListener("click",saveAggregatedFinanceSettings);
+    if(addShared)addShared.addEventListener("click",addSharedFinancePayment);
+    var dateShared=document.getElementById("sharedPaymentDate");if(dateShared)dateShared.value=isoDate(getTodayDate());
 
     // Wire
     tabs.forEach(function(t){

@@ -4922,3 +4922,12 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
 .financeAggregateCourse span,.financeAggregatePayment span,.financeAggregatePayment small{font-size:12px;color:var(--muted);overflow-wrap:anywhere}
 .financeAggregatePayment strong{white-space:nowrap}
 @media(max-width:600px){.financeAggregateBody{padding:12px}.financeAggregateTotals{grid-template-columns:1fr}.financeAggregateCourse{align-items:flex-start;flex-wrap:wrap}.financeAggregateCourse .btn{margin-left:auto}}
+
+/* Fase B - quota studente e registro condiviso */
+.financeAggregateSettings{border:1px solid var(--line);border-radius:13px;padding:14px;display:grid;gap:10px}
+.financeAggregateSettings .hint{line-height:1.5}
+.financeAggregateFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px 12px}
+.financeAggregateFields .field{min-width:0;margin:3px 0}
+.financeAggregateFields input,.financeAggregateFields select{max-width:100%}
+.financeAggregateWide{grid-column:1/-1}
+@media(max-width:560px){.financeAggregateFields{grid-template-columns:1fr}.financeAggregateWide{grid-column:auto}}

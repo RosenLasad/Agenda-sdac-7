@@ -746,18 +746,42 @@
         <button class="btn" type="button" id="closeFinanceAggregateBtn">Chiudi</button>
       </div>
       <div class="financeAggregateBody">
-        <div class="financeAggregateNotice">Fase A · Riepilogo dei dati storici per corso. Le quote sono sommate <strong>senza applicare sconti</strong>; la quota concordata e i pagamenti condivisi saranno gestiti nella Fase B.</div>
+        <div class="financeAggregateNotice">Fase B · Le registrazioni storiche rimangono nei rispettivi corsi. La quota concordata e le nuove rate sono condivise tra tutti i corsi dello studente.</div>
         <div class="schoolEyebrow">Corsi frequentati</div>
         <div id="financeAggregateCourses" class="financeAggregateCourseNames"></div>
         <div class="financeAggregateTotals">
-          <div><span>Quote corsi (lordo)</span><strong id="financeAggregateFee">—</strong></div>
+          <div><span id="financeAggregateFeeLabel">Quota proposta (da confermare)</span><strong id="financeAggregateFee">—</strong></div>
           <div><span>Pagamenti registrati</span><strong id="financeAggregatePaid">—</strong></div>
-          <div><span>Differenza provvisoria</span><strong id="financeAggregateBalance">—</strong></div>
+          <div><span>Residuo complessivo</span><strong id="financeAggregateBalance">—</strong></div>
+        </div>
+        <p class="hint" id="financeAggregateAgreementHint">Quota da verificare.</p>
+        <div class="financeAggregateSettings">
+          <div class="schoolEyebrow">Quota complessiva e agevolazioni</div>
+          <p class="hint">Quote lorde: <strong id="financeAggregateGross">—</strong> · Quota con regola SDAC (prima delle agevolazioni personali): <strong id="financeAggregateProposed">—</strong>. Due corsi: 50% sul meno caro; tre: meno caro gratuito; quattro: 3.000 €; cinque o più: da concordare.</p>
+          <div class="financeAggregateFields">
+            <div class="field"><label for="financeAggregateDiscountType">Sconto ulteriore</label><select id="financeAggregateDiscountType"><option value="amount">Importo (€)</option><option value="percent">Percentuale (%)</option></select></div>
+            <div class="field"><label for="financeAggregateDiscountValue">Valore dello sconto</label><input id="financeAggregateDiscountValue" type="number" min="0" step="0.01"></div>
+            <div class="field"><label for="financeAggregateAgreed">Quota complessiva concordata (€)</label><input id="financeAggregateAgreed" type="number" min="0" step="0.01" placeholder="Vuoto = calcolo proposto"></div>
+            <div class="field"><label for="financeAggregateDueDate">Scadenza saldo</label><input id="financeAggregateDueDate" type="date" value="2027-04-30"></div>
+            <div class="field financeAggregateWide"><label for="financeAggregateDiscountReason">Motivo dello sconto / accordo</label><input id="financeAggregateDiscountReason" type="text" placeholder="Es. ex allievo, convenzione, accordo speciale"></div>
+          </div>
+          <button id="saveFinanceAggregateBtn" class="btn primary" type="button">Salva quota e agevolazioni</button>
+          <p class="hint">L'acconto è incluso nella quota complessiva. Le quote già registrate per corso non vengono riscritte.</p>
         </div>
         <div class="schoolEyebrow">Dettaglio dei corsi</div>
         <div id="financeAggregateBreakdown" class="financeAggregateBreakdown"></div>
         <div class="schoolEyebrow">Registro pagamenti storico</div>
         <div id="financeAggregatePayments" class="financeAggregatePayments"></div>
+        <div class="financeAggregateSettings"><div class="schoolEyebrow">Registra rata condivisa</div>
+          <div class="financeAggregateFields">
+            <div class="field"><label for="sharedPaymentKind">Tipo</label><select id="sharedPaymentKind"><option value="payment">Pagamento / rata</option><option value="deposit">Acconto</option></select></div>
+            <div class="field"><label for="sharedPaymentAmount">Importo (€)</label><input id="sharedPaymentAmount" type="number" min="0.01" step="0.01"></div>
+            <div class="field"><label for="sharedPaymentDate">Data</label><input id="sharedPaymentDate" type="date"></div>
+            <div class="field"><label for="sharedPaymentMethod">Metodo</label><select id="sharedPaymentMethod"><option value="">Non indicato</option><option value="Bonifico">Bonifico</option><option value="Contanti">Contanti</option><option value="Carta/POS">Carta / POS</option><option value="Altro">Altro</option></select></div>
+            <div class="field financeAggregateWide"><label for="sharedPaymentNote">Nota / riferimento corso facoltativo</label><input id="sharedPaymentNote" type="text" placeholder="Es. rata 2, corso Regia"></div>
+          </div>
+          <button id="addSharedPaymentBtn" class="btn primary" type="button">Registra pagamento condiviso</button>
+        </div>
       </div>
     </div>
   </div>
