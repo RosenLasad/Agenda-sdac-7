@@ -259,23 +259,6 @@ function projectAcademyForTeacher(academy, email) {
   return projected;
 }
 
-function authenticatedEmail(user) {
-  // Only values supplied by the validated Netlify Identity context are trusted.
-  return normalizeEmail(user?.email || user?.user_metadata?.email || user?.userMetadata?.email || '');
-}
-
-function studentAccessDiagnostics(academy, email) {
-  const target = normalizeEmail(email);
-  const source = academy && typeof academy === 'object' ? academy : {};
-  const activeYear = String(source.activeYear || '2026/2027');
-  const year = source.years?.[activeYear] || {};
-  const matches = target ? (year.students || []).filter(st => normalizeEmail(st.email) === target) : [];
-  if(!target) return {status:'identity_email_missing', matchedStudents:0, enrolledCourses:0, availableCourses:0};
-  if(matches.length !== 1) return {status:matches.length === 0 ? 'student_not_found' : 'duplicate_student', matchedStudents:matches.length, enrolledCourses:0, availableCourses:0};
-  const ids = new Set((matches[0].courseIds || []).map(String));
-  return {status:'matched', matchedStudents:1, enrolledCourses:ids.size, availableCourses:(year.courses || []).filter(c => ids.has(String(c.id))).length};
-}
-
 function projectAcademyForStudent(academy, email) {
   const source = academy && typeof academy === 'object' ? academy : {activeYear:'2026/2027',years:{}};
   const result = {activeYear:source.activeYear || '2026/2027',years:{}};
@@ -346,7 +329,7 @@ function projectStateForRole(data, role, user) {
       favoritesOnly: false
     },
     contacts: [],
-    academy: role === "studente" ? projectAcademyForStudent(data.academy, authenticatedEmail(user)) : projectAcademyForTeacher(data.academy, user?.email || "")
+    academy: role === "studente" ? projectAcademyForStudent(data.academy, user?.email || "") : projectAcademyForTeacher(data.academy, user?.email || "")
   };
 }
 
@@ -364,13 +347,12 @@ function mergeStateForRole(existing, incoming, role, user) {
     };
   }
 
-  // Il Docente puo modificare il Calendario, ma non puo leggere o
-  // sovrascrivere Taccuino, Rubrica o future aree amministrative.
+  // Solo il Docente puo salvare i registri dei propri corsi.
+  // Il Calendario generale e tutte le altre aree restano intatte sul server,
+  // indipendentemente dai campi eventualmente inviati dal client.
+  // Lo Studente viene comunque bloccato con HTTP 403 prima di arrivare qui.
   return {
     ...current,
-    version: current.version || payload.version || "v1-notes",
-    dataVersion: Math.max(Number(current.dataVersion || 0), Number(payload.dataVersion || 0), CURRENT_DATA_VERSION),
-    events: payload.events && typeof payload.events === "object" ? payload.events : (current.events || {}),
     academy: mergeAcademyForTeacher(current.academy, payload.academy, user?.email || "")
   };
 }
@@ -461,8 +443,7 @@ export default async (req, context) => {
         environment: IS_TEST ? "TEST" : "PRODUZIONE",
         role,
         migratedFrom: shared.migratedFrom,
-        email: authenticatedEmail(user) || null,
-        ...(role === 'studente' ? {studentAccess:studentAccessDiagnostics(shared.data?.academy, authenticatedEmail(user))} : {})
+        email: user.email || null
       });
     }
 
