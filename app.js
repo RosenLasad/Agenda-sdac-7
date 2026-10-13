@@ -3828,7 +3828,7 @@ todoActiveList.appendChild(item);
         var button=document.createElement("button");button.type="button";button.className="financeAggregateCourseLink";
         button.textContent=e.course.icon+" "+e.course.name+" ›";
         button.title="Apri dettaglio economico del corso "+e.course.name;
-        button.addEventListener("click",function(){closeAggregatedFinanceModal();openFinanceModal(student.id,e.course.id);});
+        button.addEventListener("click",function(){abandonInternalLayers(function(){openFinanceModal(student.id,e.course.id);});});
         courseButtons.appendChild(button);
       });
       overlay.querySelector("#financeAggregateFee").textContent=formatEuro(summary.fee);
@@ -3852,6 +3852,7 @@ todoActiveList.appendChild(item);
         paymentList.appendChild(item);
       });
       overlay.style.display="flex";overlay.classList.add("open");overlay.setAttribute("aria-hidden","false");
+      pushInternalNavLayer("finance-aggregate", closeAggregatedFinanceModalDirect);
     }
     function setFinanceAggregateDiscountMode(overlay,mode,clearValue){
       if(!overlay)return;
@@ -3892,9 +3893,12 @@ todoActiveList.appendChild(item);
       student.updatedAt=new Date().toISOString();touchAndSave();renderAdministration();openAggregatedFinanceModal(student.id);
       overlay.querySelector("#sharedPaymentAmount").value="";overlay.querySelector("#sharedPaymentNote").value="";
     }
-    function closeAggregatedFinanceModal(){
+    function closeAggregatedFinanceModalDirect(){
       var overlay=document.getElementById("financeAggregateOverlay");if(!overlay)return;
       overlay.style.display="none";overlay.classList.remove("open");overlay.setAttribute("aria-hidden","true");
+    }
+    function closeAggregatedFinanceModal(){
+      closeInternalNavLayer("finance-aggregate", closeAggregatedFinanceModalDirect);
     }
 
     function renderAdministrationDeadlines(entries){
@@ -4067,7 +4071,9 @@ todoActiveList.appendChild(item);
         return;
       }
       if(window.AgendaAccount && window.AgendaAccount.isOpen && window.AgendaAccount.isOpen()) return;
-      if(financeOverlay && financeOverlay.style.display === "flex") closeFinanceModal();
+      var aggregateForEscape=document.getElementById("financeAggregateOverlay");
+      if(aggregateForEscape && aggregateForEscape.style.display === "flex") closeAggregatedFinanceModal();
+      else if(financeOverlay && financeOverlay.style.display === "flex") closeFinanceModal();
       else if(studentOverlay && studentOverlay.style.display === "flex") closeStudentModal();
       else if(contactOverlay && contactOverlay.style.display === "flex") closeContactModal();
       else closeDay();
