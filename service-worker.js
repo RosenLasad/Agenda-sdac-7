@@ -1,4 +1,4 @@
-const CACHE_NAME = "sdac-phaseB-shared-finance-v1";
+const CACHE_NAME = "sdac-phaseB1-finance-ui-v1";
 
 const APP_SHELL = [
   "./",

@@ -3823,28 +3823,26 @@ todoActiveList.appendChild(item);
       var summary=studentAggregatedFinance(student,financeEntries());
       var overlay=document.getElementById("financeAggregateOverlay");if(!overlay)return;
       var name=overlay.querySelector("#financeAggregateTitle");name.textContent=fullStudentName(student);
-      overlay.querySelector("#financeAggregateCourses").textContent=summary.entries.map(function(e){return e.course.icon+" "+e.course.name;}).join(" · ");
+      var courseButtons=overlay.querySelector("#financeAggregateCourses");courseButtons.replaceChildren();
+      summary.entries.forEach(function(e){
+        var button=document.createElement("button");button.type="button";button.className="financeAggregateCourseLink";
+        button.textContent=e.course.icon+" "+e.course.name+" ›";
+        button.title="Apri dettaglio economico del corso "+e.course.name;
+        button.addEventListener("click",function(){closeAggregatedFinanceModal();openFinanceModal(student.id,e.course.id);});
+        courseButtons.appendChild(button);
+      });
       overlay.querySelector("#financeAggregateFee").textContent=formatEuro(summary.fee);
       overlay.querySelector("#financeAggregatePaid").textContent=formatEuro(summary.paid);
       overlay.querySelector("#financeAggregateBalance").textContent=formatEuro(summary.balance);
-      overlay.querySelector("#financeAggregateGross").textContent=formatEuro(summary.gross);
       overlay.querySelector("#financeAggregateFeeLabel").textContent=summary.totals.confirmed?"Quota concordata":"Quota proposta (da confermare)";
       overlay.querySelector("#financeAggregateAgreementHint").textContent=summary.totals.confirmed?"Quota confermata e salvata.":"Nessuna quota complessiva concordata salvata. La proposta non sostituisce gli accordi esistenti.";
       if(summary.entries.length>=5)overlay.querySelector("#financeAggregateAgreementHint").textContent+=" Per cinque o più corsi, la quota deve essere concordata manualmente.";
-      overlay.querySelector("#financeAggregateProposed").textContent=formatEuro(summary.totals.suggested);
-      overlay.querySelector("#financeAggregateDiscountType").value=summary.totals.shared.discountType;
+      setFinanceAggregateDiscountMode(overlay,summary.totals.shared.discountType,false);
       overlay.querySelector("#financeAggregateDiscountValue").value=String(summary.totals.shared.discountValue);
       overlay.querySelector("#financeAggregateDiscountReason").value=summary.totals.shared.discountReason;
       overlay.querySelector("#financeAggregateAgreed").value=summary.totals.confirmed?String(summary.totals.fee):"";
       overlay.querySelector("#financeAggregateDueDate").value=summary.totals.shared.dueDate||"2027-04-30";
       overlay.dataset.studentId=student.id;
-      var breakdown=overlay.querySelector("#financeAggregateBreakdown");breakdown.innerHTML="";
-      summary.entries.forEach(function(e){
-        var item=document.createElement("div");item.className="financeAggregateCourse";
-        item.innerHTML='<div><strong>'+escapeHtml(e.course.icon+" "+e.course.name)+'</strong><span>Quota '+escapeHtml(formatEuro(e.fee))+' · Pagato '+escapeHtml(formatEuro(e.paid))+'</span></div><button type="button" class="btn">Dettaglio corso</button>';
-        item.querySelector("button").addEventListener("click",function(){closeAggregatedFinanceModal();openFinanceModal(student.id,e.course.id);});
-        breakdown.appendChild(item);
-      });
       var paymentList=overlay.querySelector("#financeAggregatePayments");paymentList.innerHTML="";
       var sorted=summary.payments.slice().sort(function(a,b){return String(b.payment.date||b.payment.createdAt||"").localeCompare(String(a.payment.date||a.payment.createdAt||""));});
       if(!sorted.length)paymentList.innerHTML='<div class="schoolEmptyState compact">Nessun pagamento registrato.</div>';
@@ -3854,6 +3852,19 @@ todoActiveList.appendChild(item);
         paymentList.appendChild(item);
       });
       overlay.style.display="flex";overlay.classList.add("open");overlay.setAttribute("aria-hidden","false");
+    }
+    function setFinanceAggregateDiscountMode(overlay,mode,clearValue){
+      if(!overlay)return;
+      var type=overlay.querySelector("#financeAggregateDiscountType"),toggle=overlay.querySelector("#financeAggregateDiscountToggle"),value=overlay.querySelector("#financeAggregateDiscountValue");
+      mode=mode==="percent"?"percent":"amount";
+      type.value=mode;
+      toggle.classList.toggle("isPercent",mode==="percent");
+      toggle.setAttribute("aria-pressed",mode==="percent"?"true":"false");
+      toggle.setAttribute("aria-label",mode==="percent"?"Disattiva sconto in percentuale e usa euro":"Attiva sconto in percentuale");
+      toggle.title=mode==="percent"?"Percentuale attiva: clicca per usare euro":"Importo in euro: clicca per usare percentuale";
+      value.placeholder=mode==="percent"?"Percentuale":"Importo in euro";
+      value.max=mode==="percent"?"100":"";
+      if(clearValue)value.value="";
     }
     function saveAggregatedFinanceSettings(){
       if(!canCurrentRoleAccess("administration")||!canMutateSchoolData())return;
@@ -3976,6 +3987,13 @@ todoActiveList.appendChild(item);
       renderAdministration();
     }
 
+    var discountToggle=document.getElementById("financeAggregateDiscountToggle");
+    if(discountToggle)discountToggle.addEventListener("click",function(){
+      var overlay=document.getElementById("financeAggregateOverlay");
+      var current=overlay.querySelector("#financeAggregateDiscountType").value;
+      setFinanceAggregateDiscountMode(overlay,current==="percent"?"amount":"percent",true);
+      overlay.querySelector("#financeAggregateDiscountValue").focus();
+    });
     var aggregateCloseButton=document.getElementById("closeFinanceAggregateBtn");
     if(aggregateCloseButton) aggregateCloseButton.addEventListener("click",closeAggregatedFinanceModal);
     var aggregateOverlay=document.getElementById("financeAggregateOverlay");

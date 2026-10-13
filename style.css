@@ -4931,3 +4931,19 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
 .financeAggregateFields input,.financeAggregateFields select{max-width:100%}
 .financeAggregateWide{grid-column:1/-1}
 @media(max-width:560px){.financeAggregateFields{grid-template-columns:1fr}.financeAggregateWide{grid-column:auto}}
+
+/* Fase B.1 - riepilogo compatto, link corsi e selettore sconto */
+.financeAggregateCourseNames{display:flex;flex-wrap:wrap;gap:7px}
+.financeAggregateCourseLink{font:inherit;font-size:12px;font-weight:700;color:var(--accent);background:var(--panel-strong);border:1px solid var(--line);border-radius:999px;padding:7px 11px;cursor:pointer;max-width:100%;text-align:left;overflow-wrap:anywhere}
+.financeAggregateCourseLink:hover{border-color:var(--accent);background:var(--panel-soft)}
+.financeAggregateCourseLink:focus-visible,.financeDiscountToggle:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+.financeAggregateTotals{gap:6px}
+.financeAggregateTotals>div{padding:8px 9px;gap:4px}
+.financeAggregateTotals span{font-size:10px;line-height:1.25}
+.financeAggregateTotals strong{font-size:clamp(13px,2vw,17px);line-height:1.2}
+.financeAggregateFields--agreement{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 12px}
+.financeDiscountControl{display:flex;gap:6px;min-width:0}
+.financeDiscountControl input{flex:1;min-width:0}
+.financeDiscountToggle{width:39px;flex:0 0 39px;border:1px solid var(--line);background:var(--panel-strong);border-radius:10px;color:var(--accent);font:inherit;font-weight:700;cursor:pointer}
+.financeDiscountToggle.isPercent{background:var(--accent);border-color:var(--accent);color:#fff}
+@media(max-width:560px){.financeAggregateFields--agreement{grid-template-columns:1fr}.financeAggregateTotals{grid-template-columns:repeat(3,minmax(0,1fr))}.financeAggregateTotals>div{padding:7px 5px}.financeAggregateTotals span{font-size:9px}.financeAggregateTotals strong{font-size:12px}}
