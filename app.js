@@ -3730,8 +3730,18 @@ todoActiveList.appendChild(item);
     }
 
     function renderAdministrationStats(entries){
+      // Use each student's effective overall fee (automatic and additional discounts,
+      // or their individually agreed fee), not the undiscounted per-course prices.
+      // Shared payments must be counted exactly once.
       var total=0,paid=0,balance=0,overdue=0;
-      entries.forEach(function(e){total+=e.fee;paid+=e.paid;balance+=e.balance;if(e.status.key==="overdue")overdue++;});
+      (getAcademyYear().students||[]).forEach(function(student){
+        var summary=studentAggregatedFinance(student,entries);
+        if(!summary.entries.length)return;
+        total+=summary.fee;
+        paid+=summary.paid;
+        balance+=Math.max(0,summary.balance);
+        if(summary.status.key==="overdue")overdue++;
+      });
       if(administrationExpectedTotal) administrationExpectedTotal.textContent=formatEuro(total);
       if(administrationPaidTotal) administrationPaidTotal.textContent=formatEuro(paid);
       if(administrationBalanceTotal) administrationBalanceTotal.textContent=formatEuro(balance);
