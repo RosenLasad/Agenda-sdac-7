@@ -4076,7 +4076,11 @@ body[data-sdac-role="socio"] .adminOnlySection{ display:none!important; }
 .administrationCourseCardHead span{ color:var(--muted); font-size:11px; }
 .administrationCourseProgress{ height:6px; background:rgba(255,255,255,.06); border-radius:999px; overflow:hidden; }
 .administrationCourseProgress i{ display:block; height:100%; width:0; background:currentColor; border-radius:inherit; color:#c4933f; }
-.administrationCourseTotals{ display:flex; justify-content:space-between; gap:8px; color:var(--muted); font-size:11px; }
+.administrationCourseTotals{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:8px; color:var(--muted); font-size:11px; }
+.administrationCourseTotals span{ display:grid; gap:4px; min-width:0; }
+.administrationCourseTotals small{ font-size:10px; color:var(--muted); }
+.administrationCourseTotals strong{ color:var(--text); font-size:12px; font-weight:700; overflow-wrap:anywhere; }
+@media(max-width:640px){.administrationCourseTotals{gap:5px}.administrationCourseTotals strong{font-size:11px}}
 .administrationDeadlineRow{ border:1px solid var(--line); border-radius:14px; background:var(--panel); padding:11px 12px; display:grid; grid-template-columns:110px minmax(0,1fr) auto; gap:12px; align-items:center; }
 .administrationDeadlineDate{ display:grid; gap:2px; }
 .administrationDeadlineDate strong{ font-size:14px; }

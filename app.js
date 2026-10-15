@@ -3762,9 +3762,22 @@ todoActiveList.appendChild(item);
       if(!administrationCourseSummary)return;
       administrationCourseSummary.innerHTML="";
       (getAcademyYear().courses||[]).forEach(function(course){
-        var list=entries.filter(function(e){return e.course.id===course.id;}); var total=0,paid=0,balance=0; list.forEach(function(e){total+=e.fee;paid+=e.paid;balance+=e.balance;}); var pct=total?Math.min(100,Math.round(paid/total*100)):0;
+        var list=entries.filter(function(e){return e.course.id===course.id;});
+        // Course-level amounts are the amounts actually entered in each student's
+        // "Quota totale del corso" field, not the course's standard price.
+        // Only payments allocated to this course reduce its outstanding balance.
+        // Shared payments/discounts have no course allocation and are intentionally
+        // left in the student-level Administration summary.
+        var total=0,paid=0,balance=0;
+        list.forEach(function(e){
+          var metrics=financeMetrics(e.enrollment);
+          total+=metrics.fee;
+          paid+=metrics.paid;
+          balance+=metrics.balance;
+        });
+        var pct=total?Math.min(100,Math.round(paid/total*100)):0;
         var card=document.createElement("div"); card.className="administrationCourseCard";
-        card.innerHTML='<div class="administrationCourseCardHead"><strong>'+escapeHtml(course.icon+" "+course.name)+'</strong><span>'+list.length+' iscritti</span></div><div class="administrationCourseProgress"><i style="width:'+pct+'%"></i></div><div class="administrationCourseTotals"><span>'+escapeHtml(formatEuro(paid))+' incassati</span><span>'+escapeHtml(formatEuro(balance))+' residui</span></div>';
+        card.innerHTML='<div class="administrationCourseCardHead"><strong>'+escapeHtml(course.icon+" "+course.name)+'</strong><span>'+list.length+' iscritti</span></div><div class="administrationCourseProgress"><i style="width:'+pct+'%"></i></div><div class="administrationCourseTotals"><span><small>Quote totali</small><strong>'+escapeHtml(formatEuro(total))+'</strong></span><span><small>Incassato</small><strong>'+escapeHtml(formatEuro(paid))+'</strong></span><span><small>Residuo</small><strong>'+escapeHtml(formatEuro(balance))+'</strong></span></div>';
         administrationCourseSummary.appendChild(card);
       });
     }
